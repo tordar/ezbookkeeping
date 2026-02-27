@@ -163,6 +163,14 @@ import type {
     UserExternalAuthInfoResponse
 } from '@/models/user_external_auth.ts';
 import type {
+    BankConnectionResponse,
+    AspspsResponse,
+    StartBankAuthRequest,
+    StartBankAuthResponse,
+    DisconnectBankRequest,
+    BankConnectionTransactionsResponse
+} from '@/models/bank_integration.ts';
+import type {
     OAuth2CallbackLoginRequest
 } from '@/models/oauth2.ts';
 import type {
@@ -380,6 +388,22 @@ export default {
     },
     unlinkExternalAuth: (req: UserExternalAuthUnlinkRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/users/external_auth/unlink.json', req);
+    },
+    getBankIntegrationConnections: (): ApiResponsePromise<BankConnectionResponse[]> => {
+        return axios.get<ApiResponse<BankConnectionResponse[]>>('v1/users/bank_integration/connections.json');
+    },
+    getBankIntegrationAspsps: (country?: string): ApiResponsePromise<AspspsResponse> => {
+        const params = country ? `?country=${encodeURIComponent(country)}` : '';
+        return axios.get<ApiResponse<AspspsResponse>>('v1/users/bank_integration/aspsps.json' + params);
+    },
+    startBankIntegrationAuth: (req: StartBankAuthRequest): ApiResponsePromise<StartBankAuthResponse> => {
+        return axios.post<ApiResponse<StartBankAuthResponse>>('v1/users/bank_integration/auth/start.json', req);
+    },
+    disconnectBankIntegration: (req: DisconnectBankRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/disconnect.json', req);
+    },
+    getBankIntegrationConnectionTransactions: (sessionId: string): ApiResponsePromise<BankConnectionTransactionsResponse> => {
+        return axios.get<ApiResponse<BankConnectionTransactionsResponse>>(`v1/users/bank_integration/connections/transactions.json?sessionId=${encodeURIComponent(sessionId)}`);
     },
     getTokens: (): ApiResponsePromise<TokenInfoResponse[]> => {
         return axios.get<ApiResponse<TokenInfoResponse[]>>('v1/tokens/list.json');

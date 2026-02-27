@@ -156,6 +156,13 @@ package/
 .env
 **/.env
 
+# Local / dev config (secrets, callback URLs, app IDs — use conf/ezbookkeeping.ini as template)
+conf/ezbookkeeping.dev.ini
+conf/*.local.ini
+
+# Enable Banking / TLS private keys (do not commit)
+*.pem
+
 # Other directories
 data/
 storage/

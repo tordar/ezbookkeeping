@@ -16,7 +16,10 @@
     "build": "cross-env NODE_ENV=production vite build",
     "serve:dist": "vite preview",
     "lint": "vue-tsc --noEmit && eslint . --fix",
-    "test": "cross-env TS_NODE_PROJECT=\"./tsconfig.jest.json\" jest"
+    "test": "cross-env TS_NODE_PROJECT=\"./tsconfig.jest.json\" jest",
+    "dev:backend": "zsh -l -c 'cd \"$PWD\" && sh scripts/run-local.sh'",
+    "dev": "npm run build && npm run dev:backend",
+    "callback-relay": "go run ./scripts/callback-relay --port 9999 --backend http://localhost:8080"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",

@@ -413,6 +413,13 @@ type Config struct {
 	EnableDataImport  bool
 	MaxImportFileSize uint32
 
+	// Bank Integration (Enable Banking)
+	EnableBankIntegration   bool
+	EnableBankingAPIURL     string
+	EnableBankingAppID      string
+	EnableBankingPrivateKey string
+	EnableBankingCallbackURL string
+
 	// Tip
 	LoginPageTips MultiLanguageContentConfig
 
@@ -557,6 +564,12 @@ func LoadConfiguration(configFilePath string) (*Config, error) {
 	}
 
 	err = loadDataConfiguration(config, cfgFile, "data")
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = loadBankIntegrationConfiguration(config, cfgFile, "bank_integration")
 
 	if err != nil {
 		return nil, err
@@ -1114,6 +1127,26 @@ func loadDataConfiguration(config *Config, configFile *ini.File, sectionName str
 	config.EnableDataImport = getConfigItemBoolValue(configFile, sectionName, "enable_import", false)
 	config.MaxImportFileSize = getConfigItemUint32Value(configFile, sectionName, "max_import_file_size", defaultImportFileMaxSize)
 
+	return nil
+}
+
+func loadBankIntegrationConfiguration(config *Config, configFile *ini.File, sectionName string) error {
+	config.EnableBankIntegration = getConfigItemBoolValue(configFile, sectionName, "enable_bank_integration", false)
+	config.EnableBankingAPIURL = getConfigItemStringValue(configFile, sectionName, "enablebanking_api_url")
+	config.EnableBankingAppID = getConfigItemStringValue(configFile, sectionName, "enablebanking_app_id")
+	config.EnableBankingPrivateKey = getConfigItemStringValue(configFile, sectionName, "enablebanking_private_key")
+	config.EnableBankingCallbackURL = getConfigItemStringValue(configFile, sectionName, "enablebanking_callback_url")
+	if keyPath := getConfigItemStringValue(configFile, sectionName, "enablebanking_private_key_path"); keyPath != "" {
+		absPath := keyPath
+		if !filepath.IsAbs(keyPath) {
+			absPath = filepath.Join(config.WorkingPath, keyPath)
+		}
+		keyData, err := os.ReadFile(absPath)
+		if err != nil {
+			return fmt.Errorf("bank_integration: read private key file %s: %w", keyPath, err)
+		}
+		config.EnableBankingPrivateKey = string(keyData)
+	}
 	return nil
 }
 

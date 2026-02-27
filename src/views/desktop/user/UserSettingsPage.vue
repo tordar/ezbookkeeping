@@ -17,6 +17,10 @@
                 <v-icon size="20" start :icon="mdiDatabaseCogOutline"/>
                 {{ tt('Data Management') }}
             </v-tab>
+            <v-tab value="bankIntegrationSetting" @click="pushRouter('bankIntegrationSetting')">
+                <v-icon size="20" start :icon="mdiBankOutline"/>
+                {{ tt('Bank Integration') }}
+            </v-tab>
         </v-tabs>
 
         <v-window class="mt-4 disable-tab-transition" v-model="activeTab">
@@ -35,6 +39,10 @@
             <v-window-item value="dataManagementSetting">
                 <user-data-management-setting-tab/>
             </v-window-item>
+
+            <v-window-item value="bankIntegrationSetting">
+                <user-bank-integration-setting-tab/>
+            </v-window-item>
         </v-window>
     </div>
 </template>
@@ -44,6 +52,7 @@ import UserBasicSettingTab from './settings/tabs/UserBasicSettingTab.vue';
 import UserSecuritySettingTab from './settings/tabs/UserSecuritySettingTab.vue';
 import UserTwoFactorAuthSettingTab from './settings/tabs/UserTwoFactorAuthSettingTab.vue';
 import UserDataManagementSettingTab from './settings/tabs/UserDataManagementSettingTab.vue';
+import UserBankIntegrationSettingTab from './settings/tabs/UserBankIntegrationSettingTab.vue';
 
 import { ref, useTemplateRef, watch } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
@@ -54,7 +63,8 @@ import {
     mdiAccountOutline,
     mdiLockOpenOutline,
     mdiOnepassword,
-    mdiDatabaseCogOutline
+    mdiDatabaseCogOutline,
+    mdiBankOutline
 } from '@mdi/js';
 
 type TwoFactorSettingTabType = InstanceType<typeof UserTwoFactorAuthSettingTab>;
@@ -71,7 +81,8 @@ const ALL_TABS: string[] = [
     'basicSetting',
     'securitySetting',
     'twoFactorSetting',
-    'dataManagementSetting'
+    'dataManagementSetting',
+    'bankIntegrationSetting'
 ];
 
 const twoFactorSettingTab = useTemplateRef<TwoFactorSettingTabType>('twoFactorSettingTab');
