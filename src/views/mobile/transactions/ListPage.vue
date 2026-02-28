@@ -11,7 +11,7 @@
             <f7-nav-left :class="{ 'disabled': loading }" :back-link="tt('Back')"></f7-nav-left>
             <f7-nav-title>
                 <f7-link popover-open=".chart-data-type-popover-menu" :class="{ 'disabled': loading }">
-                    <span style="color: var(--f7-text-color)">{{ displayPageTypeName }}</span>
+                    <span style="color: var(--f7-text-color)">{{ viewMode === 'new_transactions' ? tt('New transactions') : displayPageTypeName }}</span>
                     <f7-icon class="page-title-bar-icon" color="gray" style="opacity: 0.5" f7="chevron_down_circle_fill"></f7-icon>
                 </f7-link>
             </f7-nav-title>
@@ -37,18 +37,26 @@
             <f7-list dividers>
                 <f7-list-item link="#" no-chevron popover-close
                               :title="tt(type.name)"
-                              :class="{ 'list-item-selected': pageType === type.type }"
+                              :class="{ 'list-item-selected': viewMode === 'list' && pageType === type.type }"
                               :key="type.type"
                               v-for="type in TransactionListPageType.values()"
-                              @click="changePageType(type.type)">
+                              @click="viewMode = 'list'; changePageType(type.type)">
                     <template #after>
-                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="pageType === type.type"></f7-icon>
+                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="viewMode === 'list' && pageType === type.type"></f7-icon>
+                    </template>
+                </f7-list-item>
+                <f7-list-item link="#" no-chevron popover-close
+                              :title="tt('New transactions')"
+                              :class="{ 'list-item-selected': viewMode === 'new_transactions' }"
+                              @click="viewMode = 'new_transactions'; loadNewTransactions()">
+                    <template #after>
+                        <f7-icon class="list-item-checked-icon" f7="checkmark_alt" v-if="viewMode === 'new_transactions'"></f7-icon>
                     </template>
                 </f7-list-item>
             </f7-list>
         </f7-popover>
 
-        <f7-toolbar tabbar bottom class="compact-tabbar toolbar-item-auto-size transaction-list-toolbar">
+        <f7-toolbar tabbar bottom class="compact-tabbar toolbar-item-auto-size transaction-list-toolbar" v-if="viewMode === 'list'">
             <f7-link :class="{ 'disabled': loading || query.dateType === DateRange.All.type }" @click="shiftDateRange(query.minTime, query.maxTime, -1)">
                 <f7-icon class="icon-with-direction" f7="arrow_left_square"></f7-icon>
             </f7-link>
@@ -68,6 +76,42 @@
                 <f7-icon f7="ellipsis_vertical" :class="{ 'tabbar-item-changed': query.type > 0 || query.amountFilter || query.tagFilter }"></f7-icon>
             </f7-link>
         </f7-toolbar>
+
+        <template v-if="viewMode === 'new_transactions'">
+            <f7-block class="text-align-center margin-vertical" v-if="newTransactionsLoading">
+                <f7-preloader></f7-preloader>
+            </f7-block>
+            <f7-list strong inset dividers class="margin-vertical" v-else-if="newTransactions.length === 0">
+                <f7-list-item :title="tt('No new transactions')"></f7-list-item>
+            </f7-list>
+            <f7-list strong inset dividers media-list class="margin-vertical" v-else>
+                <f7-list-item swipeout
+                              class="transaction-info"
+                              :title="tx.description || '–'"
+                              :key="tx.sessionId + '-' + tx.transactionId"
+                              v-for="tx in newTransactions">
+                    <template #after>
+                        <span :class="tx.creditDebit === 'CRDT' ? 'text-income' : 'text-expense'">
+                            {{ tx.amount }} {{ tx.currency }}
+                        </span>
+                    </template>
+                    <template #footer>
+                        {{ tx.date }} · {{ tx.aspspName }}
+                    </template>
+                    <f7-swipeout-actions :left="textDirection === TextDirection.RTL"
+                                         :right="textDirection === TextDirection.LTR">
+                        <f7-swipeout-button color="blue" close @click="openCategoriseSheet(tx)">
+                            {{ tt('Categorise') }}
+                        </f7-swipeout-button>
+                        <f7-swipeout-button color="red" close @click="dismissTransaction(tx)">
+                            {{ tt('Dismiss') }}
+                        </f7-swipeout-button>
+                    </f7-swipeout-actions>
+                </f7-list-item>
+            </f7-list>
+        </template>
+
+        <template v-if="viewMode === 'list'">
 
         <f7-block class="transaction-calendar-container margin-vertical" v-if="pageType === TransactionListPageType.Calendar.type">
             <transaction-calendar calendar-class="justify-content-center" week-day-name-type="short"
@@ -301,6 +345,8 @@
                   v-if="pageType === TransactionListPageType.List.type">
             <f7-link href="#" @click="loadMore(false)">{{ tt('Load More') }}</f7-link>
         </f7-block>
+
+        </template>
 
         <f7-popover class="date-popover-menu" @popover:open="onPopoverOpen">
             <f7-list dividers>
@@ -595,6 +641,11 @@
                 <f7-actions-button bold close>{{ tt('Cancel') }}</f7-actions-button>
             </f7-actions-group>
         </f7-actions>
+
+        <new-transaction-categorise-sheet v-model:show="showCategoriseSheet"
+                                          :transaction="pendingTx"
+                                          @accepted="onTransactionAccepted">
+        </new-transaction-categorise-sheet>
     </f7-page>
 </template>
 
@@ -635,6 +686,11 @@ import { type NumeralSystem, AmountFilterType } from '@/core/numeral.ts';
 import { TransactionType } from '@/core/transaction.ts';
 import type { TransactionCategory } from '@/models/transaction_category.ts';
 import { type Transaction, TransactionTagFilter } from '@/models/transaction.ts';
+import type { NewBankTransactionItem } from '@/models/bank_integration.ts';
+
+import services from '@/lib/services.ts';
+import { getCachedNewTransactions, invalidateNewTransactionsCache } from '@/lib/bank_transactions_cache.ts';
+import NewTransactionCategoriseSheet from '@/components/mobile/NewTransactionCategoriseSheet.vue';
 
 import {
     isDefined,
@@ -743,6 +799,12 @@ const showSearchbar = ref<boolean>(false);
 const showCustomDateRangeSheet = ref<boolean>(false);
 const showCustomMonthSheet = ref<boolean>(false);
 const showDeleteActionSheet = ref<boolean>(false);
+const viewMode = ref<'list' | 'new_transactions'>('list');
+const newTransactions = ref<NewBankTransactionItem[]>([]);
+const newTransactionsLoading = ref<boolean>(false);
+const newTransactionCount = ref<number>(0);
+const pendingTx = ref<NewBankTransactionItem | null>(null);
+const showCategoriseSheet = ref<boolean>(false);
 
 const textDirection = computed<TextDirection>(() => getCurrentLanguageTextDirection());
 const numeralSystem = computed<NumeralSystem>(() => getCurrentNumeralSystemType());
@@ -941,6 +1003,13 @@ function init(): void {
         };
     }
 
+    if (initQuery['viewMode'] === 'new_transactions') {
+        viewMode.value = 'new_transactions';
+        loading.value = false;
+        loadNewTransactions();
+        return;
+    }
+
     transactionsStore.initTransactionListFilter({
         dateType: dateRange ? dateRange.dateType : undefined,
         maxTime: dateRange ? dateRange.maxTime : undefined,
@@ -956,6 +1025,11 @@ function init(): void {
 }
 
 function reload(done?: () => void): void {
+    if (viewMode.value === 'new_transactions') {
+        loadNewTransactions().then(() => done?.()).catch(() => done?.());
+        return;
+    }
+
     const force = !!done;
 
     if (!done) {
@@ -1478,6 +1552,47 @@ function onTransactionMonthListCollapseStateChanged(): void {
         .then(() => {
             setTransactionInvisibleYearMonthList();
         });
+}
+
+async function loadNewTransactions(force = false): Promise<void> {
+    newTransactionsLoading.value = true;
+    try {
+        newTransactions.value = await getCachedNewTransactions(force);
+        newTransactionCount.value = newTransactions.value.length;
+    } catch (error: unknown) {
+        if (!(error as { processed?: boolean }).processed) {
+            showToast((error as Error).message || String(error));
+        }
+    } finally {
+        newTransactionsLoading.value = false;
+    }
+}
+
+async function dismissTransaction(tx: NewBankTransactionItem): Promise<void> {
+    try {
+        await services.dismissBankIntegrationNewTransaction({
+            sessionId: tx.sessionId,
+            bankTransactionId: tx.transactionId
+        });
+        newTransactions.value = newTransactions.value.filter(t => t !== tx);
+        newTransactionCount.value = newTransactions.value.length;
+        invalidateNewTransactionsCache();
+    } catch (error: unknown) {
+        if (!(error as { processed?: boolean }).processed) {
+            showToast((error as Error).message || String(error));
+        }
+    }
+}
+
+function openCategoriseSheet(tx: NewBankTransactionItem): void {
+    pendingTx.value = tx;
+    showCategoriseSheet.value = true;
+}
+
+function onTransactionAccepted(tx: NewBankTransactionItem): void {
+    newTransactions.value = newTransactions.value.filter(t => t !== tx);
+    newTransactionCount.value = newTransactions.value.length;
+    invalidateNewTransactionsCache();
 }
 
 onMounted(() => {

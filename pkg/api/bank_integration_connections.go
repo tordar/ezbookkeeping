@@ -480,6 +480,10 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 	if len(accountUIDs) == 0 {
 		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
+	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
+	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
+		accountUIDs = accountUIDs[:1]
+	}
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
 	dateFrom := now.Add(-bankNewTransactionsHours * time.Hour).Format("2006-01-02")
@@ -506,6 +510,10 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 			counterparty = tx.Creditor.Name
 		} else if tx.Debtor != nil {
 			counterparty = tx.Debtor.Name
+		}
+		// Skip dated transactions outside the 48h window (some ASPSPs ignore date params with strategy=longest)
+		if tx.TransactionDate != "" && tx.TransactionDate < dateFrom {
+			return
 		}
 		date := tx.TransactionDate
 		if date == "" {
@@ -545,12 +553,8 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 		}
 		if len(hal.Transactions) == 0 {
 			hal, goErr = client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest")
-			if goErr != nil || len(hal.Transactions) == 0 {
-				// try without date filter to get pending transactions without date
-				hal, goErr = client.GetAccountTransactions(accountUID, "", "", "longest")
-				if goErr != nil {
-					continue
-				}
+			if goErr != nil {
+				continue
 			}
 		}
 		for i := range hal.Transactions {

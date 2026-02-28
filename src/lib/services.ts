@@ -409,7 +409,7 @@ export default {
         return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/disconnect.json', req);
     },
     getBankIntegrationConnectionTransactions: (sessionId: string): ApiResponsePromise<BankConnectionTransactionsResponse> => {
-        return axios.get<ApiResponse<BankConnectionTransactionsResponse>>(`v1/users/bank_integration/connections/transactions.json?sessionId=${encodeURIComponent(sessionId)}`);
+        return axios.get<ApiResponse<BankConnectionTransactionsResponse>>(`v1/users/bank_integration/connections/transactions.json?sessionId=${encodeURIComponent(sessionId)}`, { timeout: 60000 });
     },
     getBankIntegrationNewTransactions: (): ApiResponsePromise<NewBankTransactionsResponse> => {
         return axios.get<ApiResponse<NewBankTransactionsResponse>>('v1/users/bank_integration/new_transactions.json');

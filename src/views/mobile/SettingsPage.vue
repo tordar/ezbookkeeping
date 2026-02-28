@@ -12,6 +12,7 @@
             <f7-list-item :title="tt('Data Management')" link="/user/data/management"></f7-list-item>
             <f7-list-item :title="tt('Two-Factor Authentication')" link="/user/2fa"></f7-list-item>
             <f7-list-item :title="tt('Device & Sessions')" link="/user/sessions"></f7-list-item>
+            <f7-list-item :title="tt('Bank Integration')" link="/settings/bank_integration"></f7-list-item>
             <f7-list-button :class="{ 'disabled': logouting }" @click="logout">{{ tt('Log Out') }}</f7-list-button>
         </f7-list>
 

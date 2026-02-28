@@ -163,6 +163,30 @@
             </f7-list-item>
         </f7-list>
 
+        <f7-list strong inset dividers>
+            <f7-list-item link="/transaction/list?viewMode=new_transactions" chevron-center>
+                <template #media>
+                    <f7-icon f7="tray_arrow_down"></f7-icon>
+                </template>
+                <template #title>
+                    <div class="padding-top-half">{{ tt('New transactions') }}</div>
+                </template>
+                <template #footer>
+                    <div class="overview-transaction-footer padding-bottom-half">
+                        <span v-if="newTransactionCount > 0">{{ newTransactionCount }} {{ tt('pending') }}</span>
+                        <span v-else>{{ tt('No pending transactions') }}</span>
+                    </div>
+                </template>
+                <template #after v-if="newTransactionCount > 0">
+                    <div class="overview-transaction-amount">
+                        <div class="text-expense text-align-right">
+                            <small>{{ newTransactionCount }}</small>
+                        </div>
+                    </div>
+                </template>
+            </f7-list-item>
+        </f7-list>
+
         <f7-toolbar tabbar icons bottom class="main-tabbar">
             <f7-link class="link" href="/transaction/list">
                 <f7-icon f7="square_list"></f7-icon>
@@ -230,6 +254,7 @@ import type { RecognizedReceiptImageResponse } from '@/models/large_language_mod
 
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
 import { isTransactionFromAIImageRecognitionEnabled } from '@/lib/server_settings.ts';
+import { getCachedNewTransactions } from '@/lib/bank_transactions_cache.ts';
 
 const props = defineProps<{
     f7router: Router.Router;
@@ -254,11 +279,20 @@ const overviewStore = useOverviewStore();
 const loading = ref<boolean>(true);
 const showTransactionTemplatePopover = ref<boolean>(false);
 const showAIReceiptImageRecognitionSheet = ref<boolean>(false);
+const newTransactionCount = ref<number>(0);
 
 const allTransactionTemplates = computed<TransactionTemplate[]>(() => {
     const allTemplates = transactionTemplatesStore.allVisibleTemplates;
     return allTemplates[TemplateType.Normal.type] || [];
 });
+
+function loadNewTransactionCount(force = false): void {
+    getCachedNewTransactions(force).then(txs => {
+        newTransactionCount.value = txs.length;
+    }).catch(() => {
+        // silently ignore — bank integration may not be configured
+    });
+}
 
 function openTransactionTemplatePopover(): void {
     if (isTransactionFromAIImageRecognitionEnabled() || (allTransactionTemplates.value && allTransactionTemplates.value.length)) {
@@ -279,6 +313,7 @@ function init(): void {
 
         Promise.all(promises).then(() => {
             loading.value = false;
+            loadNewTransactionCount();
         }).catch(error => {
             loading.value = false;
 
@@ -299,6 +334,7 @@ function reload(done?: () => void): void {
 
         if (force) {
             showToast('Data has been updated');
+            loadNewTransactionCount(true);
         }
     }).catch(error => {
         done?.();
