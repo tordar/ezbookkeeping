@@ -316,7 +316,6 @@ func startWebServer(c *core.CliContext) error {
 
 		if config.EnableBankIntegration {
 			apiRoute.GET("/bank_integration/callback", bindRedirect(api.BankIntegrationConnections.CallbackHandler))
-			router.GET("/callback", bindRedirect(api.BankIntegrationConnections.CallbackHandler))
 		}
 
 		apiV1Route := apiRoute.Group("/v1")
@@ -353,8 +352,12 @@ func startWebServer(c *core.CliContext) error {
 			if config.EnableBankIntegration {
 				apiV1Route.GET("/users/bank_integration/connections.json", bindApi(api.BankIntegrationConnections.ListConnectionsHandler))
 				apiV1Route.GET("/users/bank_integration/connections/transactions.json", bindApi(api.BankIntegrationConnections.GetConnectionTransactionsHandler))
+				apiV1Route.GET("/users/bank_integration/new_transactions.json", bindApi(api.BankIntegrationConnections.ListNewTransactionsHandler))
+				apiV1Route.POST("/users/bank_integration/new_transactions/accept.json", bindApi(api.BankIntegrationConnections.AcceptNewTransactionHandler))
+				apiV1Route.POST("/users/bank_integration/new_transactions/dismiss.json", bindApi(api.BankIntegrationConnections.DismissNewTransactionHandler))
 				apiV1Route.GET("/users/bank_integration/aspsps.json", bindApi(api.BankIntegrationConnections.GetAspspsHandler))
 				apiV1Route.POST("/users/bank_integration/auth/start.json", bindApi(api.BankIntegrationConnections.StartAuthHandler))
+				apiV1Route.POST("/users/bank_integration/auth/reauth.json", bindApi(api.BankIntegrationConnections.StartReauthHandler))
 				apiV1Route.POST("/users/bank_integration/disconnect.json", bindApi(api.BankIntegrationConnections.DisconnectHandler))
 			}
 

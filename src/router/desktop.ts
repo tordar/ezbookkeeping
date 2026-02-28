@@ -15,6 +15,7 @@ import UnlockPage from '@/views/desktop/UnlockPage.vue';
 import HomePage from '@/views/desktop/HomePage.vue';
 
 import TransactionListPage from '@/views/desktop/transactions/ListPage.vue';
+import NewTransactionsPage from '@/views/desktop/transactions/NewTransactionsPage.vue';
 
 import StatisticsTransactionPage from '@/views/desktop/statistics/TransactionPage.vue';
 
@@ -117,6 +118,11 @@ const router = createRouter({
                         initAmountFilter: route.query['amountFilter'],
                         initKeyword: route.query['keyword']
                     })
+                },
+                {
+                    path: '/transaction/new',
+                    component: NewTransactionsPage,
+                    beforeEnter: checkLogin
                 },
                 {
                     path: '/statistics/transaction',

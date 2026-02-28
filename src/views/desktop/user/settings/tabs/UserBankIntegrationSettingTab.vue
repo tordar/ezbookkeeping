@@ -33,15 +33,26 @@
                                         </template>
                                         <v-list-item-title>{{ conn.aspspName }} ({{ conn.aspspCountry }})</v-list-item-title>
                                         <template #append>
-                                            <v-btn
-                                                size="small"
-                                                color="error"
-                                                variant="text"
-                                                :loading="disconnectingSessionId === conn.sessionId"
-                                                @click="disconnect(conn.sessionId)"
-                                            >
-                                                {{ tt('Disconnect') }}
-                                            </v-btn>
+                                            <div class="d-flex align-center flex-shrink-0">
+                                                <v-btn
+                                                    size="small"
+                                                    variant="text"
+                                                    class="me-1"
+                                                    :loading="reauthSessionId === conn.sessionId"
+                                                    @click="reauth(conn.sessionId)"
+                                                >
+                                                    {{ tt('Reauth') }}
+                                                </v-btn>
+                                                <v-btn
+                                                    size="small"
+                                                    color="error"
+                                                    variant="text"
+                                                    :loading="disconnectingSessionId === conn.sessionId"
+                                                    @click="disconnect(conn.sessionId)"
+                                                >
+                                                    {{ tt('Disconnect') }}
+                                                </v-btn>
+                                            </div>
                                         </template>
                                     </v-list-item>
                                     <v-list-item class="px-0 pt-0">
@@ -163,6 +174,7 @@ const route = useRoute();
 const connections = ref<BankConnectionResponse[]>([]);
 const loadingConnections = ref(false);
 const disconnectingSessionId = ref<string | null>(null);
+const reauthSessionId = ref<string | null>(null);
 
 type ConnectionTransactionsState = { transactions: BankConnectionTransactionItem[]; loading: boolean; error?: boolean };
 const connectionTransactions = ref<Record<string, ConnectionTransactionsState>>({});
@@ -272,6 +284,23 @@ async function connectBank(bank: AspspData) {
         callbackMessage.value = tt('Failed to start bank connection.');
     } finally {
         startingAuthFor.value = null;
+    }
+}
+
+async function reauth(sessionId: string) {
+    reauthSessionId.value = sessionId;
+    try {
+        const res = await services.startBankIntegrationReauth({ sessionId });
+        const url = (res.data.result as { url?: string })?.url;
+        if (url) {
+            window.location.href = url;
+            return;
+        }
+    } catch {
+        callbackStatus.value = 'error';
+        callbackMessage.value = tt('Failed to start re-authorization.');
+    } finally {
+        reauthSessionId.value = null;
     }
 }
 

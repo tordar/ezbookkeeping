@@ -44,3 +44,38 @@ export interface BankConnectionTransactionItem {
 export interface BankConnectionTransactionsResponse {
     transactions: BankConnectionTransactionItem[];
 }
+
+export interface NewBankTransactionItem {
+    sessionId: string;
+    aspspName: string;
+    transactionId: string;
+    date: string;
+    bookingDate?: string;
+    amount: string;
+    currency: string;
+    creditDebit: string;
+    description: string;
+    counterpartyName?: string;
+}
+
+export interface NewBankTransactionsResponse {
+    transactions: NewBankTransactionItem[];
+}
+
+export interface AcceptNewBankTransactionRequest {
+    sessionId: string;
+    bankTransactionId: string;
+    accountId: number | string;
+    categoryId: number | string;
+    amount: string;
+    transactionDate: string;
+    bookingDate?: string;
+    description?: string;
+    creditDebit: string;
+    currency?: string;
+}
+
+export interface DismissNewBankTransactionRequest {
+    sessionId: string;
+    bankTransactionId: string;
+}

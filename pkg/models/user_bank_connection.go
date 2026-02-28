@@ -67,3 +67,63 @@ type BankConnectionTransactionItem struct {
 type BankConnectionTransactionsResponse struct {
 	Transactions []*BankConnectionTransactionItem `json:"transactions"`
 }
+
+// UserBankTransactionAction represents a user's action on a bank transaction (accepted or dismissed)
+type UserBankTransactionAction struct {
+	Id                    int64  `xorm:"PK AUTOINCR"`
+	Uid                   int64  `xorm:"UNIQUE(UQE_user_bank_tx_action) INDEX NOT NULL"`
+	ConnectionSessionId   string `xorm:"VARCHAR(64) UNIQUE(UQE_user_bank_tx_action) NOT NULL"`
+	BankTransactionId     string `xorm:"VARCHAR(128) UNIQUE(UQE_user_bank_tx_action) NOT NULL"`
+	Status                string `xorm:"VARCHAR(16) NOT NULL"` // "accepted" | "dismissed"
+	CreatedTransactionId  int64  `xorm:"NOT NULL"`              // set when status=accepted
+	CreatedUnixTime       int64
+}
+
+// TableName returns the table name for xorm
+func (u *UserBankTransactionAction) TableName() string {
+	return "user_bank_transaction_action"
+}
+
+const (
+	UserBankTransactionActionStatusAccepted = "accepted"
+	UserBankTransactionActionStatusDismissed = "dismissed"
+)
+
+// NewBankTransactionItem is a bank transaction with connection info for the "new transactions" list
+type NewBankTransactionItem struct {
+	SessionId        string `json:"sessionId"`
+	AspspName        string `json:"aspspName"`
+	TransactionID    string `json:"transactionId"`
+	Date             string `json:"date"`             // transaction date, or booking date as fallback for display
+	BookingDate      string `json:"bookingDate"`       // raw booking date from API; used as fallback when accepting if no transaction date
+	Amount           string `json:"amount"`
+	Currency         string `json:"currency"`
+	CreditDebit      string `json:"creditDebit"`
+	Description      string `json:"description"`
+	CounterpartyName string `json:"counterpartyName,omitempty"`
+}
+
+// NewBankTransactionsResponse holds pending new transactions (last 48h, not yet accepted/dismissed)
+type NewBankTransactionsResponse struct {
+	Transactions []*NewBankTransactionItem `json:"transactions"`
+}
+
+// AcceptNewBankTransactionRequest is the request to accept (categorise) a new bank transaction
+type AcceptNewBankTransactionRequest struct {
+	SessionId        string `json:"sessionId" binding:"required,notBlank"`
+	BankTransactionId string `json:"bankTransactionId" binding:"required,notBlank"`
+	AccountId        int64  `json:"accountId,string" binding:"required,min=1"`
+	CategoryId       int64  `json:"categoryId,string" binding:"required,min=1"`
+	Amount           string `json:"amount" binding:"required"`
+	TransactionDate  string `json:"transactionDate"` // optional; backend falls back to bookingDate, then today
+	BookingDate      string `json:"bookingDate"`     // optional fallback when transactionDate is empty
+	Description      string `json:"description"`
+	CreditDebit      string `json:"creditDebit" binding:"required"` // CRDT or DBIT
+	Currency         string `json:"currency"`
+}
+
+// DismissNewBankTransactionRequest is the request to dismiss a new bank transaction
+type DismissNewBankTransactionRequest struct {
+	SessionId         string `json:"sessionId" binding:"required,notBlank"`
+	BankTransactionId string `json:"bankTransactionId" binding:"required,notBlank"`
+}

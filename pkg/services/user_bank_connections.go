@@ -59,6 +59,28 @@ func (s *UserBankConnectionService) CreateConnection(c core.Context, conn *model
 	return err
 }
 
+// UpdateConnectionSession updates an existing connection with a new session (e.g. after reauth)
+func (s *UserBankConnectionService) UpdateConnectionSession(c core.Context, uid int64, oldSessionId, newSessionId, aspspName, aspspCountry, validUntil string) error {
+	if uid <= 0 {
+		return errs.ErrUserIdInvalid
+	}
+	updated := &models.UserBankConnection{
+		SessionId:    newSessionId,
+		AspspName:    aspspName,
+		AspspCountry: aspspCountry,
+		ValidUntil:   validUntil,
+	}
+	n, err := s.UserDataDB(uid).NewSession(c).Where("uid=? AND session_id=?", uid, oldSessionId).
+		Cols("session_id", "aspsp_name", "aspsp_country", "valid_until").Update(updated)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errs.ErrBankConnectionNotFound
+	}
+	return nil
+}
+
 // DeleteConnection removes a bank connection by session ID for the user
 func (s *UserBankConnectionService) DeleteConnection(c core.Context, uid int64, sessionId string) error {
 	if uid <= 0 {

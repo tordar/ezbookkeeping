@@ -168,7 +168,10 @@ import type {
     StartBankAuthRequest,
     StartBankAuthResponse,
     DisconnectBankRequest,
-    BankConnectionTransactionsResponse
+    BankConnectionTransactionsResponse,
+    NewBankTransactionsResponse,
+    AcceptNewBankTransactionRequest,
+    DismissNewBankTransactionRequest
 } from '@/models/bank_integration.ts';
 import type {
     OAuth2CallbackLoginRequest
@@ -399,11 +402,23 @@ export default {
     startBankIntegrationAuth: (req: StartBankAuthRequest): ApiResponsePromise<StartBankAuthResponse> => {
         return axios.post<ApiResponse<StartBankAuthResponse>>('v1/users/bank_integration/auth/start.json', req);
     },
+    startBankIntegrationReauth: (req: DisconnectBankRequest): ApiResponsePromise<StartBankAuthResponse> => {
+        return axios.post<ApiResponse<StartBankAuthResponse>>('v1/users/bank_integration/auth/reauth.json', req);
+    },
     disconnectBankIntegration: (req: DisconnectBankRequest): ApiResponsePromise<boolean> => {
         return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/disconnect.json', req);
     },
     getBankIntegrationConnectionTransactions: (sessionId: string): ApiResponsePromise<BankConnectionTransactionsResponse> => {
         return axios.get<ApiResponse<BankConnectionTransactionsResponse>>(`v1/users/bank_integration/connections/transactions.json?sessionId=${encodeURIComponent(sessionId)}`);
+    },
+    getBankIntegrationNewTransactions: (): ApiResponsePromise<NewBankTransactionsResponse> => {
+        return axios.get<ApiResponse<NewBankTransactionsResponse>>('v1/users/bank_integration/new_transactions.json');
+    },
+    acceptBankIntegrationNewTransaction: (req: AcceptNewBankTransactionRequest): ApiResponsePromise<{ accepted: boolean; transactionId: number }> => {
+        return axios.post<ApiResponse<{ accepted: boolean; transactionId: number }>>('v1/users/bank_integration/new_transactions/accept.json', req);
+    },
+    dismissBankIntegrationNewTransaction: (req: DismissNewBankTransactionRequest): ApiResponsePromise<boolean> => {
+        return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/new_transactions/dismiss.json', req);
     },
     getTokens: (): ApiResponsePromise<TokenInfoResponse[]> => {
         return axios.get<ApiResponse<TokenInfoResponse[]>>('v1/tokens/list.json');
