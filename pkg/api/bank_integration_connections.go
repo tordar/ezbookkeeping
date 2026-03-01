@@ -292,7 +292,14 @@ func (a *BankIntegrationConnectionsApi) CallbackHandler(c *core.WebContext) (str
 func (a *BankIntegrationConnectionsApi) redirectToSettings(c *core.WebContext, status, message string) (string, *errs.Error) {
 	cfg := a.CurrentConfig()
 	base := strings.TrimSuffix(cfg.RootUrl, "/")
-	redirectURL := fmt.Sprintf("%s/desktop#/user/settings?tab=bankIntegrationSetting&bank=%s", base, status)
+	userAgent := c.GetHeader("User-Agent")
+	isMobile := strings.Contains(userAgent, "iPhone") || strings.Contains(userAgent, "iPad") || strings.Contains(userAgent, "Android")
+	var redirectURL string
+	if isMobile {
+		redirectURL = fmt.Sprintf("%s/mobile.html#!/settings/bank_integration?bank=%s", base, status)
+	} else {
+		redirectURL = fmt.Sprintf("%s/desktop#/user/settings?tab=bankIntegrationSetting&bank=%s", base, status)
+	}
 	if message != "" {
 		redirectURL += "&bank_message=" + url.QueryEscape(message)
 	}
