@@ -332,7 +332,8 @@ type HalTransactions struct {
 
 // GetAccountTransactions fetches transactions for an account (date format: 2006-01-02).
 // strategy is optional; use "longest" to request the longest available period (some ASPSPs need this).
-func (c *Client) GetAccountTransactions(accountID, dateFrom, dateTo, strategy string) (*HalTransactions, error) {
+// bookingStatus is optional; use "booked", "pending", or "both" to filter by booking status.
+func (c *Client) GetAccountTransactions(accountID, dateFrom, dateTo, strategy, bookingStatus string) (*HalTransactions, error) {
 	path := "/accounts/" + accountID + "/transactions"
 	var params []string
 	if dateFrom != "" {
@@ -343,6 +344,9 @@ func (c *Client) GetAccountTransactions(accountID, dateFrom, dateTo, strategy st
 	}
 	if strategy != "" {
 		params = append(params, "strategy="+strategy)
+	}
+	if bookingStatus != "" {
+		params = append(params, "booking_status="+bookingStatus)
 	}
 	if len(params) > 0 {
 		path += "?" + strings.Join(params, "&")

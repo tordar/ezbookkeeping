@@ -296,7 +296,7 @@ func (a *BankIntegrationConnectionsApi) redirectToSettings(c *core.WebContext, s
 	isMobile := strings.Contains(userAgent, "iPhone") || strings.Contains(userAgent, "iPad") || strings.Contains(userAgent, "Android")
 	var redirectURL string
 	if isMobile {
-		redirectURL = fmt.Sprintf("%s/mobile.html#!/settings/bank_integration?bank=%s", base, status)
+		redirectURL = fmt.Sprintf("%s/mobile#!/settings/bank_integration?bank=%s", base, status)
 	} else {
 		redirectURL = fmt.Sprintf("%s/desktop#/user/settings?tab=bankIntegrationSetting&bank=%s", base, status)
 	}
@@ -398,14 +398,14 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 	var all []txWithDate
 
 	for _, accountUID := range accountUIDs {
-		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "")
+		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "", "")
 		if goErr != nil {
 			log.Warnf(c, "[bank_integration.GetConnectionTransactionsHandler] GetAccountTransactions for account %s failed: %s", accountUID, goErr.Error())
 			continue
 		}
 		// Some ASPSPs (e.g. Bank Norwegian) only return transactions when using strategy=longest
 		if len(hal.Transactions) == 0 {
-			halLongest, errLongest := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest")
+			halLongest, errLongest := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest", "")
 			if errLongest == nil && len(halLongest.Transactions) > 0 {
 				hal = halLongest
 				log.Infof(c, "[bank_integration.GetConnectionTransactionsHandler] account %s: got %d transaction(s) using strategy=longest", accountUID, len(hal.Transactions))
@@ -553,29 +553,17 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 	}
 	var items []*models.NewBankTransactionItem
 	for _, accountUID := range accountUIDs {
-		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "")
+		// Single call: booking_status=both returns booked and pending together.
+		// strategy=longest ensures ASPSPs that require it still return results.
+		// appendTx filters booked transactions to the 48h window client-side.
+		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest", "both")
 		if goErr != nil {
 			log.Warnf(c, "[bank_integration.fetchConnectionTransactions48h] GetAccountTransactions %s failed: %s", accountUID, goErr.Error())
 			continue
 		}
-		if len(hal.Transactions) == 0 {
-			hal, goErr = client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest")
-			if goErr != nil {
-				continue
-			}
-		}
+		log.Infof(c, "[bank_integration.fetchConnectionTransactions48h] account %s: got %d transaction(s) (booked+pending)", accountUID, len(hal.Transactions))
 		for i := range hal.Transactions {
 			appendTx(accountUID, &hal.Transactions[i], &items)
-		}
-		// Also fetch without date filter to include pending transactions (no transaction date yet)
-		halNoDate, goErr := client.GetAccountTransactions(accountUID, "", "", "longest")
-		if goErr == nil {
-			for i := range halNoDate.Transactions {
-				tx := &halNoDate.Transactions[i]
-				if tx.TransactionDate == "" {
-					appendTx(accountUID, tx, &items)
-				}
-			}
 		}
 	}
 	return items
