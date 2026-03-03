@@ -352,6 +352,9 @@ func startWebServer(c *core.CliContext) error {
 			if config.EnableBankIntegration {
 				apiV1Route.GET("/users/bank_integration/connections.json", bindApi(api.BankIntegrationConnections.ListConnectionsHandler))
 				apiV1Route.GET("/users/bank_integration/connections/transactions.json", bindApi(api.BankIntegrationConnections.GetConnectionTransactionsHandler))
+				apiV1Route.GET("/users/bank_integration/connections/accounts.json", bindApi(api.BankIntegrationConnections.GetConnectionAccountsHandler))
+				apiV1Route.POST("/users/bank_integration/connections/account.json", bindApi(api.BankIntegrationConnections.SetConnectionAccountHandler))
+				apiV1Route.POST("/users/bank_integration/connections/default_account.json", bindApi(api.BankIntegrationConnections.SetConnectionDefaultAccountHandler))
 				apiV1Route.GET("/users/bank_integration/new_transactions.json", bindApi(api.BankIntegrationConnections.ListNewTransactionsHandler))
 				apiV1Route.POST("/users/bank_integration/new_transactions/accept.json", bindApi(api.BankIntegrationConnections.AcceptNewTransactionHandler))
 				apiV1Route.POST("/users/bank_integration/new_transactions/dismiss.json", bindApi(api.BankIntegrationConnections.DismissNewTransactionHandler))

@@ -81,6 +81,40 @@ func (s *UserBankConnectionService) UpdateConnectionSession(c core.Context, uid 
 	return nil
 }
 
+// UpdateSelectedAccount sets the selected account UID and name for a bank connection
+func (s *UserBankConnectionService) UpdateSelectedAccount(c core.Context, uid int64, sessionId, accountUID, accountName string) error {
+	if uid <= 0 {
+		return errs.ErrUserIdInvalid
+	}
+	updated := &models.UserBankConnection{SelectedAccountUID: accountUID, SelectedAccountName: accountName}
+	n, err := s.UserDataDB(uid).NewSession(c).Where("uid=? AND session_id=?", uid, sessionId).
+		Cols("selected_account_uid", "selected_account_name").Update(updated)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errs.ErrBankConnectionNotFound
+	}
+	return nil
+}
+
+// UpdateDefaultAccount sets the default ledger account ID for a bank connection
+func (s *UserBankConnectionService) UpdateDefaultAccount(c core.Context, uid int64, sessionId string, defaultAccountId int64) error {
+	if uid <= 0 {
+		return errs.ErrUserIdInvalid
+	}
+	updated := &models.UserBankConnection{DefaultAccountId: defaultAccountId}
+	n, err := s.UserDataDB(uid).NewSession(c).Where("uid=? AND session_id=?", uid, sessionId).
+		Cols("default_account_id").Update(updated)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errs.ErrBankConnectionNotFound
+	}
+	return nil
+}
+
 // DeleteConnection removes a bank connection by session ID for the user
 func (s *UserBankConnectionService) DeleteConnection(c core.Context, uid int64, sessionId string) error {
 	if uid <= 0 {

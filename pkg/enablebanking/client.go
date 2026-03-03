@@ -302,6 +302,75 @@ func (c *Client) GetSession(sessionID string) (*GetSessionResponse, error) {
 	return &out, nil
 }
 
+// BankAccountID holds the account identifier
+type BankAccountID struct {
+	IBAN string `json:"iban,omitempty"`
+	BBAN string `json:"bban,omitempty"`
+}
+
+// BankAccountDetails holds account details from the Enable Banking accounts API
+type BankAccountDetails struct {
+	AccountID  BankAccountID `json:"account_id"`
+	Name       string        `json:"name,omitempty"`
+	OwnerName  string        `json:"owner_name,omitempty"`
+	Product    string        `json:"product,omitempty"`
+	Details    string        `json:"details,omitempty"`
+	Currency   string        `json:"currency,omitempty"`
+}
+
+// GetAccountDetails returns details for a single account by its UID
+func (c *Client) GetAccountDetails(accountUID string) (*BankAccountDetails, error) {
+	path := "/accounts/" + accountUID
+	resp, err := c.doRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("enablebanking GET account: %s %s", resp.Status, string(b))
+	}
+	var out BankAccountDetails
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AccountBalance is a single balance entry from the balances endpoint
+type AccountBalance struct {
+	BalanceAmount struct {
+		Currency string `json:"currency"`
+		Amount   string `json:"amount"`
+	} `json:"balance_amount"`
+	BalanceType         string `json:"balance_type"`
+	CreditDebitIndicator string `json:"credit_debit_indicator"`
+}
+
+// GetAccountBalancesResponse is the response from GET /accounts/{uid}/balances
+type GetAccountBalancesResponse struct {
+	Balances []AccountBalance `json:"balances"`
+}
+
+// GetAccountBalances returns balances for a single account by its UID
+func (c *Client) GetAccountBalances(accountUID string) (*GetAccountBalancesResponse, error) {
+	path := "/accounts/" + accountUID + "/balances"
+	resp, err := c.doRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("enablebanking GET account balances: %s %s", resp.Status, string(b))
+	}
+	var out GetAccountBalancesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BankTransactionAmount is amount with currency
 type BankTransactionAmount struct {
 	Currency string `json:"currency"`

@@ -306,6 +306,140 @@ func (a *BankIntegrationConnectionsApi) redirectToSettings(c *core.WebContext, s
 	return redirectURL, nil
 }
 
+// GetConnectionAccountsHandler returns the available accounts for a bank connection
+func (a *BankIntegrationConnectionsApi) GetConnectionAccountsHandler(c *core.WebContext) (any, *errs.Error) {
+	cfg := a.CurrentConfig()
+	if !cfg.EnableBankIntegration {
+		return nil, errs.ErrBankIntegrationDisabled
+	}
+
+	sessionId := c.Query("sessionId")
+	if sessionId == "" {
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("sessionId is required"))
+	}
+
+	uid := c.GetCurrentUid()
+	if _, err := a.connections.GetConnectionBySessionId(c, uid, sessionId); err != nil {
+		return nil, errs.Or(err, errs.ErrBankConnectionNotFound)
+	}
+
+	client, apiErr := a.getClient()
+	if apiErr != nil {
+		return nil, apiErr
+	}
+
+	session, goErr := client.GetSession(sessionId)
+	if goErr != nil {
+		log.Errorf(c, "[bank_integration.GetConnectionAccountsHandler] GetSession failed: %s", goErr.Error())
+		return nil, errs.Or(goErr, errs.ErrOperationFailed)
+	}
+
+	accountUIDs := make([]string, 0, len(session.AccountsData)+len(session.Accounts))
+	for _, acc := range session.AccountsData {
+		if acc.UID != "" {
+			accountUIDs = append(accountUIDs, acc.UID)
+		}
+	}
+	if len(accountUIDs) == 0 {
+		accountUIDs = append(accountUIDs, session.Accounts...)
+	}
+
+	result := make([]*models.BankConnectionAccount, 0, len(accountUIDs))
+	for _, accUID := range accountUIDs {
+		entry := &models.BankConnectionAccount{UID: accUID}
+		details, detailErr := client.GetAccountDetails(accUID)
+		if detailErr == nil && details != nil {
+			entry.Name = details.Name
+			if entry.Name == "" {
+				entry.Name = details.OwnerName
+			}
+			if entry.Name == "" {
+				entry.Name = details.Product
+			}
+			if entry.Name == "" {
+				entry.Name = details.Details
+			}
+			entry.IBAN = details.AccountID.IBAN
+			entry.BBAN = details.AccountID.BBAN
+			entry.Currency = details.Currency
+		}
+		// If account details are unavailable (e.g. ASPSP doesn't expose the endpoint),
+		// fall back to the balances endpoint to get at least currency and balance amount.
+		if entry.IBAN == "" && entry.BBAN == "" && entry.Currency == "" {
+			if bals, balErr := client.GetAccountBalances(accUID); balErr == nil && len(bals.Balances) > 0 {
+				for _, b := range bals.Balances {
+					if entry.Currency == "" {
+						entry.Currency = b.BalanceAmount.Currency
+					}
+					if b.BalanceType == "closingBooked" {
+						entry.Currency = b.BalanceAmount.Currency
+						entry.Balance = b.BalanceAmount.Amount
+						break
+					}
+				}
+				if entry.Balance == "" {
+					entry.Balance = bals.Balances[0].BalanceAmount.Amount
+				}
+			}
+		}
+		result = append(result, entry)
+	}
+
+	return &models.BankConnectionAccountsResponse{Accounts: result}, nil
+}
+
+// SetConnectionAccountHandler sets the selected account for a bank connection
+func (a *BankIntegrationConnectionsApi) SetConnectionAccountHandler(c *core.WebContext) (any, *errs.Error) {
+	cfg := a.CurrentConfig()
+	if !cfg.EnableBankIntegration {
+		return nil, errs.ErrBankIntegrationDisabled
+	}
+
+	var req models.SetConnectionAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Warnf(c, "[bank_integration.SetConnectionAccountHandler] parse request failed: %s", err.Error())
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
+	}
+
+	uid := c.GetCurrentUid()
+	if _, err := a.connections.GetConnectionBySessionId(c, uid, req.SessionId); err != nil {
+		return nil, errs.Or(err, errs.ErrBankConnectionNotFound)
+	}
+
+	if err := a.connections.UpdateSelectedAccount(c, uid, req.SessionId, req.AccountUID, req.AccountName); err != nil {
+		log.Errorf(c, "[bank_integration.SetConnectionAccountHandler] UpdateSelectedAccount failed: %s", err.Error())
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
+
+	return true, nil
+}
+
+// SetConnectionDefaultAccountHandler sets the default ledger account for a bank connection
+func (a *BankIntegrationConnectionsApi) SetConnectionDefaultAccountHandler(c *core.WebContext) (any, *errs.Error) {
+	cfg := a.CurrentConfig()
+	if !cfg.EnableBankIntegration {
+		return nil, errs.ErrBankIntegrationDisabled
+	}
+
+	var req models.SetConnectionDefaultAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Warnf(c, "[bank_integration.SetConnectionDefaultAccountHandler] parse request failed: %s", err.Error())
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
+	}
+
+	uid := c.GetCurrentUid()
+	if _, err := a.connections.GetConnectionBySessionId(c, uid, req.SessionId); err != nil {
+		return nil, errs.Or(err, errs.ErrBankConnectionNotFound)
+	}
+
+	if err := a.connections.UpdateDefaultAccount(c, uid, req.SessionId, req.DefaultAccountId); err != nil {
+		log.Errorf(c, "[bank_integration.SetConnectionDefaultAccountHandler] UpdateDefaultAccount failed: %s", err.Error())
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
+
+	return true, nil
+}
+
 // DisconnectHandler removes a bank connection
 func (a *BankIntegrationConnectionsApi) DisconnectHandler(c *core.WebContext) (any, *errs.Error) {
 	cfg := a.CurrentConfig()
@@ -356,7 +490,7 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 	}
 
 	uid := c.GetCurrentUid()
-	_, err := a.connections.GetConnectionBySessionId(c, uid, sessionId)
+	conn, err := a.connections.GetConnectionBySessionId(c, uid, sessionId)
 	if err != nil {
 		return nil, errs.Or(err, errs.ErrBankConnectionNotFound)
 	}
@@ -382,10 +516,14 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 	if len(accountUIDs) == 0 {
 		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
-	log.Infof(c, "[bank_integration.GetConnectionTransactionsHandler] session %s: got %d account(s)", sessionId, len(accountUIDs))
-	if len(accountUIDs) == 0 {
+
+	// Only fetch transactions for the selected account — fetching all accounts before
+	// one is chosen wastes the ASPSP's daily per-account API quota.
+	if conn.SelectedAccountUID == "" {
 		return &models.BankConnectionTransactionsResponse{Transactions: []*models.BankConnectionTransactionItem{}}, nil
 	}
+	accountUIDs = []string{conn.SelectedAccountUID}
+	log.Infof(c, "[bank_integration.GetConnectionTransactionsHandler] session %s: fetching transactions for account %s", sessionId, conn.SelectedAccountUID)
 
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
@@ -487,9 +625,8 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 	if len(accountUIDs) == 0 {
 		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
-	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
-	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
-		accountUIDs = accountUIDs[:1]
+	if conn.SelectedAccountUID != "" {
+		accountUIDs = []string{conn.SelectedAccountUID}
 	}
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
@@ -549,6 +686,7 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 			CreditDebit:      tx.CreditDebitIndicator,
 			Description:      desc,
 			CounterpartyName: counterparty,
+			DefaultAccountId: conn.DefaultAccountId,
 		})
 	}
 	var items []*models.NewBankTransactionItem

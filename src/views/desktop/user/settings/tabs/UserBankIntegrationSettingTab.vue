@@ -32,8 +32,33 @@
                                             <v-icon :icon="mdiBankOutline" class="me-2" />
                                         </template>
                                         <v-list-item-title>{{ conn.aspspName }} ({{ conn.aspspCountry }})</v-list-item-title>
+                                        <v-list-item-subtitle v-if="conn.selectedAccountUid" class="text-caption">
+                                            {{ tt('Account') }}: {{ conn.selectedAccountName || accountLabel(conn.sessionId, conn.selectedAccountUid) }}
+                                        </v-list-item-subtitle>
+                                        <v-list-item-subtitle v-if="conn.defaultAccountId" class="text-caption">
+                                            {{ tt('Default') }}: {{ accountsStore.allVisiblePlainAccounts?.find(a => String(a.id) === String(conn.defaultAccountId))?.name || conn.defaultAccountId }}
+                                        </v-list-item-subtitle>
                                         <template #append>
                                             <div class="d-flex align-center flex-shrink-0">
+                                                <v-btn
+                                                    size="small"
+                                                    color="teal"
+                                                    variant="text"
+                                                    class="me-1"
+                                                    :loading="loadingAccountsFor === conn.sessionId"
+                                                    @click="openAccountPicker(conn.sessionId)"
+                                                >
+                                                    {{ tt('Choose account') }}
+                                                </v-btn>
+                                                <v-btn
+                                                    size="small"
+                                                    color="indigo"
+                                                    variant="text"
+                                                    class="me-1"
+                                                    @click="openDefaultAccountDialog(conn.sessionId)"
+                                                >
+                                                    {{ tt('Default account') }}
+                                                </v-btn>
                                                 <v-btn
                                                     size="small"
                                                     variant="text"
@@ -98,6 +123,55 @@
                             </template>
                         </v-card-text>
                     </v-card>
+
+                    <!-- Account picker dialog -->
+                    <v-dialog v-model="accountPickerOpen" max-width="480">
+                        <v-card>
+                            <v-card-title>{{ tt('Choose account') }}</v-card-title>
+                            <v-card-text>
+                                <v-list>
+                                    <v-list-item
+                                        v-for="acc in pickerAccounts"
+                                        :key="acc.uid"
+                                        :title="acc.name || acc.uid"
+                                        :subtitle="[acc.iban || acc.bban, acc.currency && acc.balance ? acc.currency + ' ' + acc.balance : acc.currency].filter(Boolean).join(' · ')"
+                                        @click="selectAccount(acc.uid)"
+                                        style="cursor:pointer"
+                                    />
+                                </v-list>
+                                <p v-if="pickerAccounts.length === 0" class="text-body-2 text-medium-emphasis">{{ tt('No accounts found.') }}</p>
+                            </v-card-text>
+                            <v-card-actions>
+                                <v-spacer />
+                                <v-btn @click="accountPickerOpen = false">{{ tt('Cancel') }}</v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </v-dialog>
+
+                    <!-- Default account dialog -->
+                    <v-dialog v-model="defaultAccountDialogOpen" max-width="480">
+                        <v-card>
+                            <v-card-title>{{ tt('Set default account') }}</v-card-title>
+                            <v-card-text>
+                                <p class="text-body-2 text-medium-emphasis mb-3">{{ tt('Transactions from this bank will pre-fill this account when categorising.') }}</p>
+                                <v-select
+                                    v-model="defaultAccountId"
+                                    :items="(accountsStore.allVisiblePlainAccounts ?? []).map(a => ({ id: String(a.id), name: a.name }))"
+                                    item-title="name"
+                                    item-value="id"
+                                    :label="tt('Account')"
+                                    density="comfortable"
+                                    clearable
+                                    :menu-props="{ maxHeight: 320 }"
+                                />
+                            </v-card-text>
+                            <v-card-actions>
+                                <v-spacer />
+                                <v-btn @click="defaultAccountDialogOpen = false">{{ tt('Cancel') }}</v-btn>
+                                <v-btn color="primary" :loading="settingDefaultAccount" :disabled="!defaultAccountId" @click="saveDefaultAccount">{{ tt('Save') }}</v-btn>
+                            </v-card-actions>
+                        </v-card>
+                    </v-dialog>
 
                     <v-card variant="outlined">
                         <v-card-title class="text-subtitle-1">{{ tt('Connect a bank') }}</v-card-title>
@@ -165,11 +239,13 @@ import { ref, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from '@/locales/helpers.ts';
 import services from '@/lib/services.ts';
-import type { BankConnectionResponse, AspspData, BankConnectionTransactionItem } from '@/models/bank_integration.ts';
+import type { BankConnectionResponse, BankConnectionAccount, AspspData, BankConnectionTransactionItem } from '@/models/bank_integration.ts';
 import { mdiBankOutline } from '@mdi/js';
+import { useAccountsStore } from '@/stores/account.ts';
 
 const { tt } = useI18n();
 const route = useRoute();
+const accountsStore = useAccountsStore();
 
 const connections = ref<BankConnectionResponse[]>([]);
 const loadingConnections = ref(false);
@@ -187,6 +263,86 @@ const startingAuthFor = ref<string | null>(null);
 
 const callbackStatus = ref<string | null>(null);
 const callbackMessage = ref('');
+
+const loadingAccountsFor = ref<string | null>(null);
+const accountPickerOpen = ref(false);
+const pickerSessionId = ref<string | null>(null);
+const pickerAccounts = ref<BankConnectionAccount[]>([]);
+const accountsCache = ref<Record<string, BankConnectionAccount[]>>({});
+
+const defaultAccountDialogOpen = ref(false);
+const defaultAccountSessionId = ref<string | null>(null);
+const defaultAccountId = ref<string | null>(null);
+const settingDefaultAccount = ref(false);
+
+async function openDefaultAccountDialog(sessionId: string) {
+    defaultAccountSessionId.value = sessionId;
+    const conn = connections.value.find(c => c.sessionId === sessionId);
+    defaultAccountId.value = conn?.defaultAccountId ? String(conn.defaultAccountId) : null;
+    void accountsStore.loadAllAccounts({ force: false });
+    defaultAccountDialogOpen.value = true;
+}
+
+async function saveDefaultAccount() {
+    const sessionId = defaultAccountSessionId.value;
+    if (!sessionId || !defaultAccountId.value) return;
+    settingDefaultAccount.value = true;
+    try {
+        await services.setBankConnectionDefaultAccount({ sessionId, defaultAccountId: defaultAccountId.value });
+        const id = Number(defaultAccountId.value);
+        connections.value = connections.value.map(c =>
+            c.sessionId === sessionId ? { ...c, defaultAccountId: id } : c
+        );
+        defaultAccountDialogOpen.value = false;
+    } catch {
+        callbackStatus.value = 'error';
+        callbackMessage.value = tt('Failed to set default account.');
+    } finally {
+        settingDefaultAccount.value = false;
+    }
+}
+
+function accountLabel(sessionId: string, uid: string): string {
+    const cached = accountsCache.value[sessionId];
+    if (cached) {
+        const acc = cached.find(a => a.uid === uid);
+        if (acc) return acc.name || acc.iban || uid;
+    }
+    return uid;
+}
+
+async function openAccountPicker(sessionId: string) {
+    loadingAccountsFor.value = sessionId;
+    try {
+        const res = await services.getBankConnectionAccounts(sessionId);
+        const accounts = (res.data.result as { accounts?: BankConnectionAccount[] })?.accounts ?? [];
+        accountsCache.value = { ...accountsCache.value, [sessionId]: accounts };
+        pickerSessionId.value = sessionId;
+        pickerAccounts.value = accounts;
+        accountPickerOpen.value = true;
+    } catch {
+        callbackStatus.value = 'error';
+        callbackMessage.value = tt('Failed to load accounts.');
+    } finally {
+        loadingAccountsFor.value = null;
+    }
+}
+
+async function selectAccount(accountUid: string) {
+    accountPickerOpen.value = false;
+    const sessionId = pickerSessionId.value;
+    if (!sessionId) return;
+    const accountName = pickerAccounts.value.find(a => a.uid === accountUid)?.name;
+    try {
+        await services.setBankConnectionAccount({ sessionId, accountUid, accountName });
+        connections.value = connections.value.map(c =>
+            c.sessionId === sessionId ? { ...c, selectedAccountUid: accountUid, selectedAccountName: accountName } : c
+        );
+    } catch {
+        callbackStatus.value = 'error';
+        callbackMessage.value = tt('Failed to set account.');
+    }
+}
 
 function parseCallbackParams() {
     const bank = route.query['bank'] as string | undefined;
@@ -224,15 +380,20 @@ async function loadTransactionsForConnection(sessionId: string) {
     }
 }
 
-async function loadConnections() {
+async function loadConnections(autoPickAccount = false) {
     loadingConnections.value = true;
     try {
         const res = await services.getBankIntegrationConnections();
         connections.value = (res.data.result ?? []) as BankConnectionResponse[];
         connectionTransactions.value = {};
-        // Trigger transaction fetch for each connection (watch will also run, but this ensures we start immediately)
         for (const conn of connections.value) {
             void loadTransactionsForConnection(conn.sessionId);
+        }
+        if (autoPickAccount) {
+            const unpicked = connections.value.find(c => !c.selectedAccountUid);
+            if (unpicked) {
+                await openAccountPicker(unpicked.sessionId);
+            }
         }
     } catch {
         connections.value = [];
