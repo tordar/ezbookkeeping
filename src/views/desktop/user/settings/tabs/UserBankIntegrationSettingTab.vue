@@ -230,6 +230,7 @@ async function loadConnections() {
         const res = await services.getBankIntegrationConnections();
         connections.value = (res.data.result ?? []) as BankConnectionResponse[];
         connectionTransactions.value = {};
+        // Trigger transaction fetch for each connection (watch will also run, but this ensures we start immediately)
         for (const conn of connections.value) {
             void loadTransactionsForConnection(conn.sessionId);
         }

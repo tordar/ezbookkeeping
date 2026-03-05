@@ -172,7 +172,7 @@ async function load() {
 function openCategoriseDialog(tx: NewBankTransactionItem) {
     pendingTx.value = tx;
     pendingBankTransactionId.value = getBankTransactionId(tx);
-    selectedAccountId.value = tx.defaultAccountId ? String(tx.defaultAccountId) : null;
+    selectedAccountId.value = null;
     selectedCategoryId.value = null;
     categoriseDialog.value = true;
     void accountsStore.loadAllAccounts({ force: false });

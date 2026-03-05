@@ -164,9 +164,6 @@ import type {
 } from '@/models/user_external_auth.ts';
 import type {
     BankConnectionResponse,
-    BankConnectionAccountsResponse,
-    SetConnectionAccountRequest,
-    SetConnectionDefaultAccountRequest,
     AspspsResponse,
     StartBankAuthRequest,
     StartBankAuthResponse,
@@ -413,15 +410,6 @@ export default {
     },
     getBankIntegrationConnectionTransactions: (sessionId: string): ApiResponsePromise<BankConnectionTransactionsResponse> => {
         return axios.get<ApiResponse<BankConnectionTransactionsResponse>>(`v1/users/bank_integration/connections/transactions.json?sessionId=${encodeURIComponent(sessionId)}`, { timeout: 60000 });
-    },
-    getBankConnectionAccounts: (sessionId: string): ApiResponsePromise<BankConnectionAccountsResponse> => {
-        return axios.get<ApiResponse<BankConnectionAccountsResponse>>(`v1/users/bank_integration/connections/accounts.json?sessionId=${encodeURIComponent(sessionId)}`);
-    },
-    setBankConnectionAccount: (req: SetConnectionAccountRequest): ApiResponsePromise<boolean> => {
-        return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/connections/account.json', req);
-    },
-    setBankConnectionDefaultAccount: (req: SetConnectionDefaultAccountRequest): ApiResponsePromise<boolean> => {
-        return axios.post<ApiResponse<boolean>>('v1/users/bank_integration/connections/default_account.json', req);
     },
     getBankIntegrationNewTransactions: (): ApiResponsePromise<NewBankTransactionsResponse> => {
         return axios.get<ApiResponse<NewBankTransactionsResponse>>('v1/users/bank_integration/new_transactions.json');

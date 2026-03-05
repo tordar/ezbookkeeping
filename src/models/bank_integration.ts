@@ -9,30 +9,6 @@ export interface BankConnectionResponse {
     createdAt: number;
 }
 
-export interface BankConnectionAccount {
-    uid: string;
-    name?: string;
-    iban?: string;
-    bban?: string;
-    currency?: string;
-    balance?: string;
-}
-
-export interface BankConnectionAccountsResponse {
-    accounts: BankConnectionAccount[];
-}
-
-export interface SetConnectionAccountRequest {
-    sessionId: string;
-    accountUid: string;
-    accountName?: string;
-}
-
-export interface SetConnectionDefaultAccountRequest {
-    sessionId: string;
-    defaultAccountId: number | string;
-}
-
 export interface AspspData {
     name: string;
     country: string;

@@ -2,16 +2,13 @@ package models
 
 // UserBankConnection represents a user's bank connection (Enable Banking session) stored in database
 type UserBankConnection struct {
-	Id                  int64  `xorm:"PK AUTOINCR"`
-	Uid                 int64  `xorm:"INDEX NOT NULL"`
-	SessionId           string `xorm:"VARCHAR(64) UNIQUE NOT NULL"`
-	AspspName           string `xorm:"VARCHAR(128) NOT NULL"`
-	AspspCountry        string `xorm:"VARCHAR(2) NOT NULL"`
-	ValidUntil          string `xorm:"VARCHAR(32)"`
-	SelectedAccountUID  string `xorm:"selected_account_uid VARCHAR(128)"`
-	SelectedAccountName string `xorm:"selected_account_name VARCHAR(256)"`
-	DefaultAccountId    int64  `xorm:"default_account_id BIGINT"`
-	CreatedUnixTime     int64
+	Id               int64  `xorm:"PK AUTOINCR"`
+	Uid              int64  `xorm:"INDEX NOT NULL"`
+	SessionId        string `xorm:"VARCHAR(64) UNIQUE NOT NULL"`
+	AspspName        string `xorm:"VARCHAR(128) NOT NULL"`
+	AspspCountry     string `xorm:"VARCHAR(2) NOT NULL"`
+	ValidUntil       string `xorm:"VARCHAR(32)"`
+	CreatedUnixTime  int64
 }
 
 // TableName returns the table name for xorm
@@ -34,43 +31,12 @@ type UserBankConnectionResponse struct {
 // ToResponse returns a view-object for API response
 func (u *UserBankConnection) ToResponse() *UserBankConnectionResponse {
 	return &UserBankConnectionResponse{
-		SessionId:           u.SessionId,
-		AspspName:           u.AspspName,
-		AspspCountry:        u.AspspCountry,
-		ValidUntil:          u.ValidUntil,
-		SelectedAccountUID:  u.SelectedAccountUID,
-		SelectedAccountName: u.SelectedAccountName,
-		DefaultAccountId:    u.DefaultAccountId,
-		CreatedAt:           u.CreatedUnixTime,
+		SessionId:    u.SessionId,
+		AspspName:    u.AspspName,
+		AspspCountry: u.AspspCountry,
+		ValidUntil:   u.ValidUntil,
+		CreatedAt:    u.CreatedUnixTime,
 	}
-}
-
-// BankConnectionAccount represents a single account available for a bank connection
-type BankConnectionAccount struct {
-	UID      string `json:"uid"`
-	Name     string `json:"name,omitempty"`
-	IBAN     string `json:"iban,omitempty"`
-	BBAN     string `json:"bban,omitempty"`
-	Currency string `json:"currency,omitempty"`
-	Balance  string `json:"balance,omitempty"`
-}
-
-// BankConnectionAccountsResponse holds the available accounts for a bank connection
-type BankConnectionAccountsResponse struct {
-	Accounts []*BankConnectionAccount `json:"accounts"`
-}
-
-// SetConnectionAccountRequest is the request to set the selected account for a connection
-type SetConnectionAccountRequest struct {
-	SessionId   string `json:"sessionId" binding:"required,notBlank"`
-	AccountUID  string `json:"accountUid" binding:"required,notBlank"`
-	AccountName string `json:"accountName"`
-}
-
-// SetConnectionDefaultAccountRequest is the request to set the default ledger account for a connection
-type SetConnectionDefaultAccountRequest struct {
-	SessionId        string `json:"sessionId" binding:"required,notBlank"`
-	DefaultAccountId int64  `json:"defaultAccountId,string" binding:"required,min=1"`
 }
 
 // StartBankAuthRequest represents request to start bank authorization

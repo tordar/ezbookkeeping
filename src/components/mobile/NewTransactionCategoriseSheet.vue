@@ -149,8 +149,8 @@ const selectedCategory = computed(() => {
 const selectedAccountName = computed(() => selectedAccount.value?.name ?? null);
 const selectedCategoryName = computed(() => selectedCategory.value?.name ?? null);
 
-watch(() => props.transaction, (tx) => {
-    selectedAccountId.value = tx?.defaultAccountId ? String(tx.defaultAccountId) : null;
+watch(() => props.transaction, () => {
+    selectedAccountId.value = null;
     selectedCategoryId.value = null;
 });
 
