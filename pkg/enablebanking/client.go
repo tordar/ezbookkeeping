@@ -66,7 +66,7 @@ func NewClient(cfg *Config) (*Client, error) {
 		baseURL:    baseURL,
 		appID:      cfg.AppID,
 		privateKey: key,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 90 * time.Second},
 	}, nil
 }
 

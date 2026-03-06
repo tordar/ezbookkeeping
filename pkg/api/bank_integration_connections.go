@@ -611,22 +611,26 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 
 // fetchConnectionTransactions48h returns all transactions in the last 48h for one connection (for new-transactions list)
 func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.WebContext, client *enablebanking.Client, conn *models.UserBankConnection) []*models.NewBankTransactionItem {
-	session, goErr := client.GetSession(conn.SessionId)
-	if goErr != nil {
-		log.Warnf(c, "[bank_integration.fetchConnectionTransactions48h] GetSession %s failed: %s", conn.SessionId, goErr.Error())
-		return nil
-	}
-	accountUIDs := make([]string, 0, len(session.AccountsData)+len(session.Accounts))
-	for _, acc := range session.AccountsData {
-		if acc.UID != "" {
-			accountUIDs = append(accountUIDs, acc.UID)
-		}
-	}
-	if len(accountUIDs) == 0 {
-		accountUIDs = append(accountUIDs, session.Accounts...)
-	}
+	// If a specific account is already chosen, use it directly without fetching the session.
+	// Fetching the session just to get account UIDs that we then immediately override wastes
+	// one round-trip to Enable Banking (which can be slow for some ASPSPs).
+	var accountUIDs []string
 	if conn.SelectedAccountUID != "" {
 		accountUIDs = []string{conn.SelectedAccountUID}
+	} else {
+		session, goErr := client.GetSession(conn.SessionId)
+		if goErr != nil {
+			log.Warnf(c, "[bank_integration.fetchConnectionTransactions48h] GetSession %s failed: %s", conn.SessionId, goErr.Error())
+			return nil
+		}
+		for _, acc := range session.AccountsData {
+			if acc.UID != "" {
+				accountUIDs = append(accountUIDs, acc.UID)
+			}
+		}
+		if len(accountUIDs) == 0 {
+			accountUIDs = append(accountUIDs, session.Accounts...)
+		}
 	}
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
