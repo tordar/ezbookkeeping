@@ -399,14 +399,14 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 	var all []txWithDate
 
 	for _, accountUID := range accountUIDs {
-		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "", "")
+		hal, goErr := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "", "both")
 		if goErr != nil {
 			log.Warnf(c, "[bank_integration.GetConnectionTransactionsHandler] GetAccountTransactions for account %s failed: %s", accountUID, goErr.Error())
 			continue
 		}
 		// Some ASPSPs (e.g. Bank Norwegian) only return transactions when using strategy=longest
 		if len(hal.Transactions) == 0 {
-			halLongest, errLongest := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest", "")
+			halLongest, errLongest := client.GetAccountTransactions(accountUID, dateFrom, dateTo, "longest", "both")
 			if errLongest == nil && len(halLongest.Transactions) > 0 {
 				hal = halLongest
 				log.Infof(c, "[bank_integration.GetConnectionTransactionsHandler] account %s: got %d transaction(s) using strategy=longest", accountUID, len(hal.Transactions))
@@ -420,6 +420,9 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 				t, _ = time.Parse("2006-01-02", tx.TransactionDate)
 			} else if tx.BookingDate != "" {
 				t, _ = time.Parse("2006-01-02", tx.BookingDate)
+			} else {
+				// Pending transactions may have no date; sort to top
+				t = now
 			}
 			all = append(all, txWithDate{tx: tx, date: t})
 		}
@@ -466,6 +469,7 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 			CreditDebit:      tx.CreditDebitIndicator,
 			Description:      desc,
 			CounterpartyName: counterparty,
+			Status:           tx.Status,
 		})
 	}
 

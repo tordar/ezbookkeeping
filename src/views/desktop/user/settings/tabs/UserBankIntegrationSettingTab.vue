@@ -78,7 +78,10 @@
                                                         </thead>
                                                         <tbody>
                                                             <tr v-for="tx in (connectionTransactions[conn.sessionId]?.transactions ?? [])" :key="tx.transactionId">
-                                                                <td>{{ tx.date }}</td>
+                                                                <td>
+                                                                    {{ tx.date }}
+                                                                    <v-chip v-if="tx.status === 'pending'" size="x-small" color="warning" class="ml-1">{{ tt('Pending') }}</v-chip>
+                                                                </td>
                                                                 <td>{{ tx.description || '–' }}</td>
                                                                 <td>{{ tx.counterpartyName || '–' }}</td>
                                                                 <td class="text-end" :class="tx.creditDebit === 'CRDT' ? 'text-success' : 'text-error'">

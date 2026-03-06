@@ -63,6 +63,7 @@ type BankConnectionTransactionItem struct {
 	CreditDebit      string  `json:"creditDebit"` // CRDT or DBIT
 	Description      string  `json:"description"`
 	CounterpartyName string  `json:"counterpartyName,omitempty"`
+	Status           string  `json:"status,omitempty"` // "booked" or "pending"
 }
 
 // BankConnectionTransactionsResponse holds latest N bank transactions for a connection
