@@ -27,7 +27,7 @@ type UserBankConnectionResponse struct {
 	ValidUntil          string `json:"validUntil,omitempty"`
 	SelectedAccountUID  string `json:"selectedAccountUid,omitempty"`
 	SelectedAccountName string `json:"selectedAccountName,omitempty"`
-	DefaultAccountId    int64  `json:"defaultAccountId,omitempty"`
+	DefaultAccountId    int64  `json:"defaultAccountId,string,omitempty"`
 	CreatedAt           int64  `json:"createdAt"`
 }
 
@@ -138,7 +138,7 @@ type NewBankTransactionItem struct {
 	CreditDebit      string `json:"creditDebit"`
 	Description      string `json:"description"`
 	CounterpartyName string `json:"counterpartyName,omitempty"`
-	DefaultAccountId int64  `json:"defaultAccountId,omitempty"`
+	DefaultAccountId int64  `json:"defaultAccountId,string,omitempty"`
 }
 
 // NewBankTransactionsResponse holds pending new transactions (last 48h, not yet accepted/dismissed)

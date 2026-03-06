@@ -5,7 +5,7 @@ export interface BankConnectionResponse {
     validUntil?: string;
     selectedAccountUid?: string;
     selectedAccountName?: string;
-    defaultAccountId?: number;
+    defaultAccountId?: string | number;
     createdAt: number;
 }
 
@@ -83,7 +83,7 @@ export interface NewBankTransactionItem {
     creditDebit: string;
     description: string;
     counterpartyName?: string;
-    defaultAccountId?: number;
+    defaultAccountId?: string | number;
 }
 
 export interface NewBankTransactionsResponse {
