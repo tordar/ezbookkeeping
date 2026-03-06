@@ -517,13 +517,13 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
 
-	// Only fetch transactions for the selected account — fetching all accounts before
-	// one is chosen wastes the ASPSP's daily per-account API quota.
-	if conn.SelectedAccountUID == "" {
-		return &models.BankConnectionTransactionsResponse{Transactions: []*models.BankConnectionTransactionItem{}}, nil
+	if conn.SelectedAccountUID != "" {
+		accountUIDs = []string{conn.SelectedAccountUID}
 	}
-	accountUIDs = []string{conn.SelectedAccountUID}
-	log.Infof(c, "[bank_integration.GetConnectionTransactionsHandler] session %s: fetching transactions for account %s", sessionId, conn.SelectedAccountUID)
+	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
+	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
+		accountUIDs = accountUIDs[:1]
+	}
 
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
@@ -631,6 +631,10 @@ func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.W
 		if len(accountUIDs) == 0 {
 			accountUIDs = append(accountUIDs, session.Accounts...)
 		}
+	}
+	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
+	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
+		accountUIDs = accountUIDs[:1]
 	}
 	now := time.Now().UTC()
 	dateTo := now.Format("2006-01-02")
