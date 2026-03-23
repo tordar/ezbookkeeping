@@ -16,6 +16,11 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/uuid"
 )
 
+// cardNameToAccountName maps Apple Pay card names to ezbookkeeping account names
+var cardNameToAccountName = map[string]string{
+	"sbanken visa": "Brukskonto",
+}
+
 // AccountService represents account service
 type AccountService struct {
 	ServiceUsingDB
@@ -74,6 +79,11 @@ func (s *AccountService) GetAccountByName(c core.Context, uid int64, name string
 	}
 
 	nameLower := strings.ToLower(name)
+
+	// Check card name aliases first
+	if mapped, ok := cardNameToAccountName[nameLower]; ok {
+		nameLower = strings.ToLower(mapped)
+	}
 
 	for _, account := range accounts {
 		if strings.Contains(strings.ToLower(account.Name), nameLower) {
