@@ -71,7 +71,7 @@
         </f7-list>
 
         <f7-block-title>{{ tt('Transaction List Page') }}</f7-block-title>
-        <f7-list strong inset dividers>
+        <f7-list strong inset dividers class="settings-list">
             <f7-list-item>
                 <template #after-title>
                     {{ tt('Show Monthly Total Amount') }}
@@ -91,7 +91,60 @@
         </f7-list>
 
         <f7-block-title>{{ tt('Transaction Edit Page') }}</f7-block-title>
-        <f7-list strong inset dividers>
+        <f7-list strong inset dividers class="settings-list">
+            <f7-list-item
+                class="item-truncate-after-text"
+                link="#"
+                @click="showQuickSaveButtonStyleInMobileTransactionListPagePopup = true"
+            >
+                <template #after-title>
+                    <div class="item-actual-title">
+                        <span>{{ tt('Quick Save Button Style') }}</span>
+                    </div>
+                </template>
+                <template #after>
+                    {{ findDisplayNameByType(allTransactionQuickSaveButtonStyles, quickSaveButtonStyleInMobileTransactionListPage) }}
+                </template>
+                <list-item-selection-popup value-type="item"
+                                           key-field="type" value-field="type"
+                                           title-field="displayName"
+                                           :title="tt('Quick Save Button Style')"
+                                           :enable-filter="true"
+                                           :filter-placeholder="tt('Quick Save Button Style')"
+                                           :filter-no-items-text="tt('No results')"
+                                           :items="allTransactionQuickSaveButtonStyles"
+                                           v-model:show="showQuickSaveButtonStyleInMobileTransactionListPagePopup"
+                                           v-model="quickSaveButtonStyleInMobileTransactionListPage">
+                </list-item-selection-popup>
+            </f7-list-item>
+
+            <f7-list-item
+                class="item-truncate-after-text"
+                link="#"
+                :disabled="quickSaveButtonStyleInMobileTransactionListPage === TransactionQuickSaveButtonStyle.Disabled.type"
+                @click="showQuickAddButtonActionInMobileTransactionEditPagePopup = true"
+            >
+                <template #after-title>
+                    <div class="item-actual-title">
+                        <span>{{ tt('Quick Add Button Action') }}</span>
+                    </div>
+                </template>
+                <template #after>
+                    {{ findDisplayNameByType(allTransactionQuickAddButtonActionTypes, quickAddButtonActionInMobileTransactionEditPage) }}
+                </template>
+                <list-item-selection-popup value-type="item"
+                                           key-field="type" value-field="type"
+                                           title-field="displayName"
+                                           :title="tt('Quick Add Button Action')"
+                                           :enable-filter="true"
+                                           :filter-placeholder="tt('Quick Add Button Action')"
+                                           :filter-no-items-text="tt('No results')"
+                                           :items="allTransactionQuickAddButtonActionTypes"
+                                           v-model:show="showQuickAddButtonActionInMobileTransactionEditPagePopup"
+                                           v-model="quickAddButtonActionInMobileTransactionEditPage">
+                </list-item-selection-popup>
+            </f7-list-item>
+
             <f7-list-item
                 class="item-truncate-after-text"
                 link="#"
@@ -138,7 +191,7 @@
         </f7-list>
 
         <f7-block-title>{{ tt('Account List Page') }}</f7-block-title>
-        <f7-list strong inset dividers>
+        <f7-list strong inset dividers class="settings-list">
             <f7-list-item
                 class="item-truncate-after-text"
                 link="/settings/filter/account?type=accountListTotalAmount"
@@ -168,7 +221,7 @@
         </f7-list>
 
         <f7-block-title>{{ tt('Exchange Rates Data Page') }}</f7-block-title>
-        <f7-list strong inset dividers>
+        <f7-list strong inset dividers class="settings-list">
             <f7-list-item
                 class="item-truncate-after-text"
                 link="#"
@@ -209,11 +262,17 @@ import { useSettingsStore } from '@/stores/setting.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 
+import type { TypeAndDisplayName } from '@/core/base.ts';
 import { CategoryType } from '@/core/category.ts';
+import { TransactionQuickSaveButtonStyle } from '@/core/transaction.ts';
 
 import { findNameByValue, findDisplayNameByType } from '@/lib/common.ts';
 
-const { tt } = useI18n();
+const {
+    tt,
+    getAllTransactionQuickSaveButtonStyles,
+    getAllTransactionQuickAddButtonActionTypes
+} = useI18n();
 const { showToast } = useI18nUIComponents();
 const {
     loadingAccounts,
@@ -242,8 +301,23 @@ const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 
 const showTimezoneUsedForStatisticsInHomePagePopup = ref<boolean>(false);
+const showQuickSaveButtonStyleInMobileTransactionListPagePopup = ref<boolean>(false);
+const showQuickAddButtonActionInMobileTransactionEditPagePopup = ref<boolean>(false);
 const showAutoSaveTransactionDraftPopup = ref<boolean>(false);
 const showCurrencySortByInExchangeRatesPagePopup = ref<boolean>(false);
+
+const allTransactionQuickSaveButtonStyles = computed<TypeAndDisplayName[]>(() => getAllTransactionQuickSaveButtonStyles());
+const allTransactionQuickAddButtonActionTypes = computed<TypeAndDisplayName[]>(() => getAllTransactionQuickAddButtonActionTypes());
+
+const quickSaveButtonStyleInMobileTransactionListPage = computed<number>({
+    get: () => settingsStore.appSettings.quickSaveButtonStyleInMobileTransactionListPage,
+    set: (value) => settingsStore.setQuickSaveButtonStyleInMobileTransactionListPage(value)
+});
+
+const quickAddButtonActionInMobileTransactionEditPage = computed<number>({
+    get: () => settingsStore.appSettings.quickAddButtonActionInMobileTransactionEditPage,
+    set: (value) => settingsStore.setQuickAddButtonActionInMobileTransactionEditPage(value)
+});
 
 const alwaysShowTransactionPicturesInMobileTransactionEditPage = computed<boolean>({
     get: () => settingsStore.appSettings.alwaysShowTransactionPicturesInMobileTransactionEditPage,

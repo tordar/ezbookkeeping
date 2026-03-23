@@ -27,7 +27,7 @@
                                 <v-list-item :key="columnType.type"
                                              :append-icon="parsedFileDataColumnMapping.dataColumnMapping[columnType.type] === parseInt(column.key) ? mdiCheck : undefined"
                                              v-for="columnType in allImportTransactionColumnTypes"
-                                             @click="parsedFileDataColumnMapping.toggleDataMappingColumn(parseInt(column.key), columnType.type)">
+                                             @click="toggleDataMappingColumn(parseInt(column.key), columnType.type)">
                                     <v-list-item-title class="cursor-pointer">
                                         {{ columnType.displayName }}
                                     </v-list-item-title>
@@ -224,17 +224,18 @@
 import SnackBar from '@/components/desktop/SnackBar.vue';
 import PaginationButtons from '@/components/desktop/PaginationButtons.vue';
 
-import { ref, computed, useTemplateRef } from 'vue';
+import { ref, computed, useTemplateRef, watch } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
 
-import { type NameValue, type NameNumeralValue, type TypeAndDisplayName, itemAndIndex, entries } from '@/core/base.ts';
+import { type NameValue, type NameNumeralValue, type TypeAndDisplayName, itemAndIndex, keys, entries } from '@/core/base.ts';
 import { type NumeralSystem, KnownAmountFormat } from '@/core/numeral.ts';
 import { type DateFormatOrder, KnownDateTimeFormat } from '@/core/datetime.ts';
 import { KnownDateTimezoneFormat } from '@/core/timezone.ts';
 import { TransactionType } from '@/core/transaction.ts';
 import { ImportTransactionColumnType, ImportTransactionDataMapping } from '@/core/import_transaction.ts';
 import { KnownFileType } from '@/core/file.ts';
+import { KNOWN_COLUMN_NAME_MAPPING, KNOWN_TRANSACTION_TYPE_NAME_MAPPING } from '@/consts/import_transaction.ts';
 
 import {
     isNumber,
@@ -477,6 +478,10 @@ function getTablePageOptions(linesCount?: number): NameNumeralValue[] {
     return pageOptions;
 }
 
+function getNormalizedKey(key: string): string {
+    return key.toLowerCase().replaceAll(' ', '').replaceAll('_', '').replaceAll('-', '');
+}
+
 function getParseDataMappedColumnDisplayName(columnIndex: number): string {
     for (const [columnType, index] of entries(parsedFileDataColumnMapping.value.dataColumnMapping)) {
         if (index === columnIndex) {
@@ -485,6 +490,92 @@ function getParseDataMappedColumnDisplayName(columnIndex: number): string {
     }
 
     return tt('Unspecified');
+}
+
+function toggleDataMappingColumn(columnIndex: number, columnType: number): void {
+    parsedFileDataColumnMapping.value.toggleDataMappingColumn(columnIndex, columnType);
+
+    if (columnType === ImportTransactionColumnType.TransactionType.type) {
+        if (!parsedFileDataColumnMapping.value.isColumnMappingSet(ImportTransactionColumnType.TransactionType)) {
+            parsedFileDataColumnMapping.value.transactionTypeMapping = {};
+        } else {
+            const allTransactionTypes = parsedFileAllTransactionTypes.value;
+
+            for (const transactionTypeName of keys(parsedFileDataColumnMapping.value.transactionTypeMapping)) {
+                if (!allTransactionTypes.includes(transactionTypeName)) {
+                    delete parsedFileDataColumnMapping.value.transactionTypeMapping[transactionTypeName];
+                }
+            }
+        }
+
+        autoSetTransactionTypeMapping();
+    }
+}
+
+function autoSetColumnMapping(): void {
+    if (!props.parsedFileData) {
+        return;
+    }
+
+    const firstLine: string[] = props.parsedFileData.length > 0 ? (props.parsedFileData[0] as string[]) : [];
+    const displayColumnNamesMap: Record<string, ImportTransactionColumnType> = {};
+
+    for (const column of ImportTransactionColumnType.values()) {
+        displayColumnNamesMap[getNormalizedKey(tt(column.name))] = column;
+    }
+
+    for (const [columnName, index] of itemAndIndex(firstLine)) {
+        const normalizedColumnName = getNormalizedKey(columnName);
+
+        if (displayColumnNamesMap[normalizedColumnName]) {
+            const columnType = displayColumnNamesMap[normalizedColumnName];
+
+            if (!isNumber(parsedFileDataColumnMapping.value.dataColumnMapping[columnType.type])) {
+                parsedFileDataColumnMapping.value.dataColumnMapping[columnType.type] = index;
+            }
+
+            continue;
+        }
+
+        if (KNOWN_COLUMN_NAME_MAPPING[normalizedColumnName]) {
+            const columnType = KNOWN_COLUMN_NAME_MAPPING[normalizedColumnName];
+
+            if (!isNumber(parsedFileDataColumnMapping.value.dataColumnMapping[columnType.type])) {
+                parsedFileDataColumnMapping.value.dataColumnMapping[columnType.type] = index;
+            }
+
+            continue;
+        }
+    }
+}
+
+function autoSetTransactionTypeMapping(): void {
+    if (!props.parsedFileData) {
+        return;
+    }
+
+    const displayTransactinTypeNamesMap: Record<string, TransactionType> = {
+        [getNormalizedKey(tt('Modify Balance'))]: TransactionType.ModifyBalance,
+        [getNormalizedKey(tt('Income'))]: TransactionType.Income,
+        [getNormalizedKey(tt('Expense'))]: TransactionType.Expense,
+        [getNormalizedKey(tt('Transfer'))]: TransactionType.Transfer
+    };
+
+    for (const transactionTypeName of parsedFileAllTransactionTypes.value) {
+        const normalizedTransactionTypeName = getNormalizedKey(transactionTypeName);
+
+        if (displayTransactinTypeNamesMap[normalizedTransactionTypeName]) {
+            const transactionType = displayTransactinTypeNamesMap[normalizedTransactionTypeName];
+            parsedFileDataColumnMapping.value.transactionTypeMapping[transactionTypeName] = transactionType;
+            continue;
+        }
+
+        if (KNOWN_TRANSACTION_TYPE_NAME_MAPPING[normalizedTransactionTypeName]) {
+            const transactionType = KNOWN_TRANSACTION_TYPE_NAME_MAPPING[normalizedTransactionTypeName];
+            parsedFileDataColumnMapping.value.transactionTypeMapping[transactionTypeName] = transactionType;
+            continue;
+        }
+    }
 }
 
 function generateResult(): ImportTransactionDefineColumnResult | undefined {
@@ -587,6 +678,13 @@ function saveColumnMappingFile(): void {
     const fileName = KnownFileType.JSON.formatFileName(tt('dataExport.defaultImportDataMappingFileName'));
     startDownloadFile(fileName, KnownFileType.JSON.createBlob(parsedFileDataColumnMapping.value.toJson()));
 }
+
+watch(() => props.parsedFileData, (newValue, oldValue) => {
+    if (newValue && !oldValue && getObjectOwnFieldCount(parsedFileDataColumnMapping.value.dataColumnMapping) < 1) {
+        autoSetColumnMapping();
+        autoSetTransactionTypeMapping();
+    }
+}, { immediate: true });
 
 defineExpose({
     menus,

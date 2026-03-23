@@ -195,7 +195,9 @@
                 <f7-actions-button @click="changeTagGroupDisplayOrder">{{ tt('Change Group Display Order') }}</f7-actions-button>
             </f7-actions-group>
             <f7-actions-group>
-                <f7-actions-button @click="setSortable()">{{ tt('Sort') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': !tags || tags.length < 2 }" @click="setSortable()">{{ tt('Sort') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': !tags || tags.length < 2 }" @click="sortByName(false)">{{ tt('Sort by Name (A to Z)') }}</f7-actions-button>
+                <f7-actions-button :class="{ 'disabled': !tags || tags.length < 2 }" @click="sortByName(true)">{{ tt('Sort by Name (Z to A)') }}</f7-actions-button>
                 <f7-actions-button v-if="!showHidden" @click="showHidden = true">{{ tt('Show Hidden Transaction Tags') }}</f7-actions-button>
                 <f7-actions-button v-if="showHidden" @click="showHidden = false">{{ tt('Hide Hidden Transaction Tags') }}</f7-actions-button>
             </f7-actions-group>
@@ -460,6 +462,17 @@ function remove(tag: TransactionTag | null, confirm: boolean): void {
             showToast(error.message || error);
         }
     });
+}
+
+function sortByName(desc: boolean): void {
+    showHidden.value = true;
+    sortable.value = true;
+
+    const changed = transactionTagsStore.sortTagDisplayOrderByTagName(activeTagGroupId.value, desc);
+
+    if (changed) {
+        displayOrderModified.value = true;
+    }
 }
 
 function setSortable(): void {

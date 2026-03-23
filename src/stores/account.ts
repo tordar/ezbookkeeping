@@ -124,6 +124,20 @@ export const useAccountsStore = defineStore('accounts', () => {
         return shownAccountCount;
     });
 
+    const maxCategoryAccountCount = computed<number>(() => {
+        let maxCount = 0;
+
+        for (const categorizedAccounts of values(allCategorizedAccountsMap.value)) {
+            const accountCount = categorizedAccounts.accounts.length;
+
+            if (accountCount > maxCount) {
+                maxCount = accountCount;
+            }
+        }
+
+        return maxCount;
+    });
+
     function loadAccountList(accounts: Account[]): void {
         allAccounts.value = accounts;
         allAccountsMap.value = {};
@@ -934,11 +948,13 @@ export const useAccountsStore = defineStore('accounts', () => {
                     return;
                 }
 
-                if (accountListStateInvalid.value) {
-                    updateAccountListInvalidState(false);
-                }
+                loadAllAccounts({ force: false }).finally(() => {
+                    if (accountListStateInvalid.value) {
+                        updateAccountListInvalidState(false);
+                    }
 
-                resolve(data.result);
+                    resolve(data.result);
+                });
             }).catch(error => {
                 logger.error('failed to save accounts display order', error);
 
@@ -1074,6 +1090,7 @@ export const useAccountsStore = defineStore('accounts', () => {
         allVisiblePlainAccounts,
         allAvailableAccountsCount,
         allVisibleAccountsCount,
+        maxCategoryAccountCount,
         // functions
         updateAccountListInvalidState,
         resetAccounts,

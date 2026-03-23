@@ -4,7 +4,9 @@ import { AccountType } from '@/core/account.ts';
 import { TransactionType } from '@/core/transaction.ts';
 import { ChartSortingType } from '@/core/statistics.ts';
 import {
+    type TransactionExplorerSubConditionStartRelation,
     TransactionExplorerConditionRelation,
+    TransactionExplorerSubConditionStartRelationPlaceholder,
     TransactionExplorerConditionRelationPriority,
     TransactionExplorerConditionFieldType,
     TransactionExplorerConditionField,
@@ -317,7 +319,7 @@ export class TransactionExplorerQuery {
                 condition = new TransactionExplorerDestinationAmountCondition(TransactionExplorerConditionOperatorType.Between, [0, 0]);
                 break;
             case TransactionExplorerConditionField.GeoLocation:
-                condition = new TransactionExplorerGeoLocationCondition(TransactionExplorerConditionOperatorType.IsNotEmpty, []);
+                condition = new TransactionExplorerGeoLocationCondition(TransactionExplorerConditionOperatorType.IsNotEmpty, [TransactionExplorerGeoLocationCondition.MIN_LATITUDE, TransactionExplorerGeoLocationCondition.MAX_LATITUDE, TransactionExplorerGeoLocationCondition.MIN_LONGITUDE, TransactionExplorerGeoLocationCondition.MAX_LONGITUDE]);
                 break;
             case TransactionExplorerConditionField.TransactionTag:
                 condition = new TransactionExplorerTransactionTagCondition(TransactionExplorerConditionOperatorType.HasAny, []);
@@ -337,6 +339,10 @@ export class TransactionExplorerQuery {
             condition,
             isFirst ? TransactionExplorerConditionRelation.First : TransactionExplorerConditionRelation.And
         );
+    }
+
+    public addSubConditionEnd(): TransactionExplorerConditionWithRelation {
+        return new TransactionExplorerConditionWithRelation(new TransactionExplorerUndefinedCondition(), TransactionExplorerConditionRelation.SubEnd);
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
@@ -434,7 +440,7 @@ export class TransactionExplorerQuery {
             return finalTokens;
         }
 
-        const operatorStack: TransactionExplorerConditionRelation[] = [];
+        const operatorStack: (TransactionExplorerConditionRelation | TransactionExplorerSubConditionStartRelation)[] = [];
         const firstCondition = this.conditions[0] as TransactionExplorerConditionWithRelation;
 
         if (firstCondition.relation !== TransactionExplorerConditionRelation.First) {
@@ -452,22 +458,70 @@ export class TransactionExplorerQuery {
                 throw new Error('only the first condition can have relation "first"');
             }
 
-            const currentOperator = item.relation;
+            if (item.relation === TransactionExplorerConditionRelation.SubEnd) {
+                while (operatorStack.length > 0) {
+                    const topOperator = operatorStack.pop();
 
-            while (operatorStack.length > 0) {
-                const topOperator = operatorStack[operatorStack.length - 1];
-                const isAndOrOperator = topOperator === TransactionExplorerConditionRelation.And || topOperator === TransactionExplorerConditionRelation.Or;
+                    if (topOperator === TransactionExplorerSubConditionStartRelationPlaceholder) {
+                        break;
+                    }
 
-                if (isAndOrOperator && TransactionExplorerConditionRelationPriority[topOperator] >= TransactionExplorerConditionRelationPriority[currentOperator]) {
-                    finalTokens.push(topOperator);
-                    operatorStack.pop();
-                } else {
-                    break;
+                    const isAndOrOperator = topOperator === TransactionExplorerConditionRelation.And || topOperator === TransactionExplorerConditionRelation.Or;
+
+                    if (isAndOrOperator) {
+                        finalTokens.push(topOperator);
+                    } else {
+                        throw new Error('invalid operator in stack');
+                    }
                 }
-            }
+            } else { // And, Or, AndSub, OrSub
+                let currentOperator: TransactionExplorerConditionRelation.And | TransactionExplorerConditionRelation.Or;
+                let startNewSubCondition = false;
 
-            operatorStack.push(currentOperator);
-            finalTokens.push(item.condition);
+                switch (item.relation) {
+                    case TransactionExplorerConditionRelation.AndSub:
+                        currentOperator = TransactionExplorerConditionRelation.And;
+                        startNewSubCondition = true;
+                        break;
+                    case TransactionExplorerConditionRelation.OrSub:
+                        currentOperator = TransactionExplorerConditionRelation.Or;
+                        startNewSubCondition = true;
+                        break;
+                    case TransactionExplorerConditionRelation.And:
+                        currentOperator = item.relation;
+                        break;
+                    case TransactionExplorerConditionRelation.Or:
+                        currentOperator = item.relation;
+                        break;
+                    default:
+                        throw new Error('invalid operator in stack');
+                }
+
+                while (operatorStack.length > 0) {
+                    const topOperator = operatorStack[operatorStack.length - 1];
+
+                    if (topOperator === TransactionExplorerSubConditionStartRelationPlaceholder) {
+                        break;
+                    }
+
+                    const isAndOrOperator = topOperator === TransactionExplorerConditionRelation.And || topOperator === TransactionExplorerConditionRelation.Or;
+
+                    if (isAndOrOperator && TransactionExplorerConditionRelationPriority[topOperator] >= TransactionExplorerConditionRelationPriority[currentOperator]) {
+                        finalTokens.push(topOperator);
+                        operatorStack.pop();
+                    } else {
+                        break;
+                    }
+                }
+
+                operatorStack.push(currentOperator);
+
+                if (startNewSubCondition) {
+                    operatorStack.push(TransactionExplorerSubConditionStartRelationPlaceholder);
+                }
+
+                finalTokens.push(item.condition);
+            }
         }
 
         while (operatorStack.length > 0) {
@@ -481,6 +535,25 @@ export class TransactionExplorerQuery {
         }
 
         return finalTokens;
+    }
+
+    public getConditionNestingDepths(): number[] {
+        const depths: number[] = [];
+        let depth = 0;
+
+        for (const item of this.conditions) {
+            if (item.relation === TransactionExplorerConditionRelation.SubEnd) {
+                depth--;
+                depths.push(depth);
+            } else if (item.relation === TransactionExplorerConditionRelation.AndSub || item.relation === TransactionExplorerConditionRelation.OrSub) {
+                depth++;
+                depths.push(depth);
+            } else {
+                depths.push(depth);
+            }
+        }
+
+        return depths;
     }
 
     public clone(newId: string): TransactionExplorerQuery {
@@ -527,6 +600,7 @@ export class TransactionExplorerQuery {
         const id: string = idFieldValue;
         const name: string = nameFieldValue;
         const conditions: TransactionExplorerConditionWithRelation[] = [];
+        let conditionDepth = 0;
 
         for (const [item, index] of itemAndIndex(conditionsFieldValue)) {
             const condition = TransactionExplorerConditionWithRelation.parse(item);
@@ -541,7 +615,18 @@ export class TransactionExplorerQuery {
                 return null;
             }
 
+            if (condition.relation === TransactionExplorerConditionRelation.AndSub ||
+                condition.relation === TransactionExplorerConditionRelation.OrSub) {
+                conditionDepth++;
+            } else if (condition.relation === TransactionExplorerConditionRelation.SubEnd) {
+                conditionDepth--;
+            }
+
             conditions.push(condition);
+        }
+
+        if (conditionDepth !== 0) {
+            return null; // unbalanced parentheses
         }
 
         return new TransactionExplorerQuery(id, name, conditions);
@@ -609,6 +694,12 @@ export class TransactionExplorerConditionWithRelation {
     }
 
     public toJsonObject(): unknown {
+        if (this.relation === TransactionExplorerConditionRelation.SubEnd) {
+            return {
+                relation: this.relation
+            };
+        }
+
         return {
             condition: {
                 field: this.condition.field,
@@ -620,83 +711,91 @@ export class TransactionExplorerConditionWithRelation {
     }
 
     public static parse(data: unknown): TransactionExplorerConditionWithRelation | null {
-        if (typeof data !== 'object' || !data || !('condition' in data) || !('relation' in data)) {
+        if (typeof data !== 'object' || !data || !('relation' in data)) {
             return null;
         }
 
-        const conditionObject = data['condition'];
         const relation = data['relation'];
-
-        if (typeof conditionObject !== 'object' || !conditionObject || !('field' in conditionObject) || !('operator' in conditionObject) || !('value' in conditionObject) || typeof relation !== 'string') {
-            return null;
-        }
-
-        const conditionField = conditionObject['field'];
-        const conditionOperator = conditionObject['operator'] as TransactionExplorerConditionOperatorType;
-        const conditionValue = conditionObject['value'];
-
         let condition: TransactionExplorerCondition | null = null;
 
-        switch (conditionField) {
-            case TransactionExplorerConditionField.TransactionType.value:
-                if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerTransactionTypeCondition(conditionValue as number[]);
-                }
-                break;
-            case TransactionExplorerConditionField.TransactionCategory.value:
-                if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerTransactionCategoryCondition(conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.SourceAccount.value:
-                if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerSourceAccountCondition(conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.DestinationAccount.value:
-                if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerDestinationAccountCondition(conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.SourceAmount.value:
-                if (TransactionExplorerSourceAmountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue) && conditionValue.length === 2) {
-                    condition = new TransactionExplorerSourceAmountCondition(conditionOperator as AmountConditionOperator, conditionValue as [number, number]);
-                }
-                break;
-            case TransactionExplorerConditionField.DestinationAmount.value:
-                if (TransactionExplorerDestinationAmountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue) && conditionValue.length === 2) {
-                    condition = new TransactionExplorerDestinationAmountCondition(conditionOperator as AmountConditionOperator, conditionValue as [number, number]);
-                }
-                break;
-            case TransactionExplorerConditionField.GeoLocation.value:
-                if (TransactionExplorerGeoLocationCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerGeoLocationCondition(conditionOperator as GeoLocationConditionOperator, conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.TransactionTag.value:
-                if (TransactionExplorerTransactionTagCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerTransactionTagCondition(conditionOperator as TransactionTagConditionOperator, conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.Pictures.value:
-                if (TransactionExplorerPicturesCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
-                    condition = new TransactionExplorerPicturesCondition(conditionOperator as PicturesConditionOperator, conditionValue as string[]);
-                }
-                break;
-            case TransactionExplorerConditionField.Description.value:
-                if (TransactionExplorerDescriptionCondition.supportedOperators[conditionOperator] && typeof conditionValue === 'string') {
-                    condition = new TransactionExplorerDescriptionCondition(conditionOperator as DescriptionConditionOperator, conditionValue);
-                }
-                break;
-            default:
-                break;
+        if (relation === TransactionExplorerConditionRelation.First ||
+            relation === TransactionExplorerConditionRelation.And || relation === TransactionExplorerConditionRelation.Or ||
+            relation === TransactionExplorerConditionRelation.AndSub || relation === TransactionExplorerConditionRelation.OrSub) {
+            if (!('condition' in data)) {
+                return null;
+            }
+
+            const conditionObject = data['condition'];
+
+            if (typeof conditionObject !== 'object' || !conditionObject || !('field' in conditionObject) || !('operator' in conditionObject) || !('value' in conditionObject) || typeof relation !== 'string') {
+                return null;
+            }
+
+            const conditionField = conditionObject['field'];
+            const conditionOperator = conditionObject['operator'] as TransactionExplorerConditionOperatorType;
+            const conditionValue = conditionObject['value'];
+
+            switch (conditionField) {
+                case TransactionExplorerConditionField.TransactionType.value:
+                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTypeCondition(conditionValue as number[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionCategory.value:
+                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionCategoryCondition(conditionValue as string[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.SourceAccount.value:
+                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerSourceAccountCondition(conditionValue as string[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.DestinationAccount.value:
+                    if (conditionOperator === TransactionExplorerConditionOperatorType.In && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerDestinationAccountCondition(conditionValue as string[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.SourceAmount.value:
+                    if (TransactionExplorerSourceAmountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue) && conditionValue.length === 2) {
+                        condition = new TransactionExplorerSourceAmountCondition(conditionOperator as AmountConditionOperator, conditionValue as [number, number]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.DestinationAmount.value:
+                    if (TransactionExplorerDestinationAmountCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue) && conditionValue.length === 2) {
+                        condition = new TransactionExplorerDestinationAmountCondition(conditionOperator as AmountConditionOperator, conditionValue as [number, number]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.GeoLocation.value:
+                    if (TransactionExplorerGeoLocationCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerGeoLocationCondition(conditionOperator as GeoLocationConditionOperator, conditionValue as [number, number, number, number]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.TransactionTag.value:
+                    if (TransactionExplorerTransactionTagCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerTransactionTagCondition(conditionOperator as TransactionTagConditionOperator, conditionValue as string[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.Pictures.value:
+                    if (TransactionExplorerPicturesCondition.supportedOperators[conditionOperator] && Array.isArray(conditionValue)) {
+                        condition = new TransactionExplorerPicturesCondition(conditionOperator as PicturesConditionOperator, conditionValue as string[]);
+                    }
+                    break;
+                case TransactionExplorerConditionField.Description.value:
+                    if (TransactionExplorerDescriptionCondition.supportedOperators[conditionOperator] && typeof conditionValue === 'string') {
+                        condition = new TransactionExplorerDescriptionCondition(conditionOperator as DescriptionConditionOperator, conditionValue);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        } else if (relation === TransactionExplorerConditionRelation.SubEnd) {
+            condition = new TransactionExplorerUndefinedCondition();
+        } else {
+            return null;
         }
 
         if (condition === null) {
-            return null;
-        }
-
-        if (relation !== TransactionExplorerConditionRelation.First && relation !== TransactionExplorerConditionRelation.And && relation !== TransactionExplorerConditionRelation.Or) {
             return null;
         }
 
@@ -712,6 +811,24 @@ export interface TransactionExplorerCondition<T = TransactionExplorerConditionFi
     getValueForStore(): V;
     match(transaction: TransactionInsightDataItem): boolean;
     toExpression(allCategoriesMap: Record<string, TransactionCategory>, allAccountsMap: Record<string, Account>, allTagsMap: Record<string, TransactionTag>): string;
+}
+
+export class TransactionExplorerUndefinedCondition implements TransactionExplorerCondition {
+    public readonly field = TransactionExplorerConditionFieldType.Undefined;
+    public readonly operator = TransactionExplorerConditionOperatorType.Equals;
+    public value = '';
+
+    public getValueForStore(): string {
+        return this.value;
+    }
+
+    public match(transaction: TransactionInsightDataItem): boolean {
+        return !!transaction;
+    }
+
+    public toExpression(): string {
+        return '';
+    }
 }
 
 export class TransactionExplorerTransactionTypeCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.TransactionType, number[]> {
@@ -984,29 +1101,47 @@ export class TransactionExplorerDestinationAmountCondition extends AbstractTrans
 }
 
 type GeoLocationConditionOperator = TransactionExplorerConditionOperatorType.IsEmpty |
-    TransactionExplorerConditionOperatorType.IsNotEmpty;
+    TransactionExplorerConditionOperatorType.IsNotEmpty |
+    TransactionExplorerConditionOperatorType.LatitudeBetween |
+    TransactionExplorerConditionOperatorType.LatitudeNotBetween |
+    TransactionExplorerConditionOperatorType.LongitudeBetween |
+    TransactionExplorerConditionOperatorType.LongitudeNotBetween;
 
-export class TransactionExplorerGeoLocationCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.GeoLocation, string[]> {
+export class TransactionExplorerGeoLocationCondition implements TransactionExplorerCondition<TransactionExplorerConditionFieldType.GeoLocation, [number, number, number, number]> {
     public static readonly supportedOperators: PartialRecord<TransactionExplorerConditionOperatorType, true> = {
         [TransactionExplorerConditionOperatorType.IsEmpty]: true,
-        [TransactionExplorerConditionOperatorType.IsNotEmpty]: true
+        [TransactionExplorerConditionOperatorType.IsNotEmpty]: true,
+        [TransactionExplorerConditionOperatorType.LatitudeBetween]: true,
+        [TransactionExplorerConditionOperatorType.LatitudeNotBetween]: true,
+        [TransactionExplorerConditionOperatorType.LongitudeBetween]: true,
+        [TransactionExplorerConditionOperatorType.LongitudeNotBetween]: true
     };
+    public static readonly MIN_LATITUDE: number = -90.0;
+    public static readonly MAX_LATITUDE: number = 90.0;
+    public static readonly MIN_LONGITUDE: number = -180.0;
+    public static readonly MAX_LONGITUDE: number = 180.0;
 
     public readonly field = TransactionExplorerConditionFieldType.GeoLocation;
     public readonly operator: GeoLocationConditionOperator = TransactionExplorerConditionOperatorType.IsNotEmpty;
-    public value: string[];
+    public value: [number, number, number, number];
 
-    constructor(operator: GeoLocationConditionOperator, value: string[]) {
+    constructor(operator: GeoLocationConditionOperator, value: [number, number, number, number]) {
         this.operator = operator;
-        this.value = value;
+        this.value = [
+            value[0] ?? TransactionExplorerGeoLocationCondition.MIN_LATITUDE,
+            value[1] ?? TransactionExplorerGeoLocationCondition.MAX_LATITUDE,
+            value[2] ?? TransactionExplorerGeoLocationCondition.MIN_LONGITUDE,
+            value[3] ?? TransactionExplorerGeoLocationCondition.MAX_LONGITUDE
+        ];
     }
 
-    public getValueForStore(): string[] {
-        if (this.operator === TransactionExplorerConditionOperatorType.IsEmpty || this.operator === TransactionExplorerConditionOperatorType.IsNotEmpty) {
-            return [];
-        }
-
-        return [];
+    public getValueForStore(): [number, number, number, number] {
+        return [
+            this.value[0] ?? TransactionExplorerGeoLocationCondition.MIN_LATITUDE,
+            this.value[1] ?? TransactionExplorerGeoLocationCondition.MAX_LATITUDE,
+            this.value[2] ?? TransactionExplorerGeoLocationCondition.MIN_LONGITUDE,
+            this.value[3] ?? TransactionExplorerGeoLocationCondition.MAX_LONGITUDE
+        ];
     }
 
     public match(transaction: TransactionInsightDataItem): boolean {
@@ -1014,6 +1149,62 @@ export class TransactionExplorerGeoLocationCondition implements TransactionExplo
             return !transaction.geoLocation;
         } else if (this.operator === TransactionExplorerConditionOperatorType.IsNotEmpty) {
             return !!transaction.geoLocation;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LatitudeBetween) {
+            if (!transaction.geoLocation) {
+                return false;
+            }
+
+            const latitude = transaction.geoLocation.latitude;
+
+            if (typeof(this.value[0]) === 'number' && latitude < this.value[0]) {
+                return false;
+            }
+
+            if (typeof(this.value[1]) === 'number' && latitude > this.value[1]) {
+                return false;
+            }
+
+            return true;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LatitudeNotBetween) {
+            if (!transaction.geoLocation) {
+                return false;
+            }
+
+            const latitude = transaction.geoLocation.latitude;
+
+            if (typeof(this.value[0]) === 'number' && typeof(this.value[1]) === 'number' && latitude >= this.value[0] && latitude <= this.value[1]) {
+                return false;
+            }
+
+            return true;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LongitudeBetween) {
+            if (!transaction.geoLocation) {
+                return false;
+            }
+
+            const longitude = transaction.geoLocation.longitude;
+
+            if (typeof(this.value[2]) === 'number' && longitude < this.value[2]) {
+                return false;
+            }
+
+            if (typeof(this.value[3]) === 'number' && longitude > this.value[3]) {
+                return false;
+            }
+
+            return true;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LongitudeNotBetween) {
+            if (!transaction.geoLocation) {
+                return false;
+            }
+
+            const longitude = transaction.geoLocation.longitude;
+
+            if (typeof(this.value[2]) === 'number' && typeof(this.value[3]) === 'number' && longitude >= this.value[2] && longitude <= this.value[3]) {
+                return false;
+            }
+
+            return true;
         }
 
         return false;
@@ -1024,6 +1215,24 @@ export class TransactionExplorerGeoLocationCondition implements TransactionExplo
             return `geo_location IS EMPTY`;
         } else if (this.operator === TransactionExplorerConditionOperatorType.IsNotEmpty) {
             return `geo_location IS NOT EMPTY`;
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LatitudeBetween || this.operator === TransactionExplorerConditionOperatorType.LatitudeNotBetween) {
+            const minLatitude: number = this.value[0] ?? TransactionExplorerGeoLocationCondition.MIN_LATITUDE;
+            const maxLatitude: number = this.value[1] ?? TransactionExplorerGeoLocationCondition.MAX_LATITUDE;
+
+            if (this.operator === TransactionExplorerConditionOperatorType.LatitudeBetween) {
+                return `(geo_location.latitude >= ${minLatitude} AND geo_location.latitude <= ${maxLatitude})`;
+            } else if (this.operator === TransactionExplorerConditionOperatorType.LatitudeNotBetween) {
+                return `(geo_location.latitude < ${minLatitude} OR geo_location.latitude > ${maxLatitude})`;
+            }
+        } else if (this.operator === TransactionExplorerConditionOperatorType.LongitudeBetween || this.operator === TransactionExplorerConditionOperatorType.LongitudeNotBetween) {
+            const minLongitude: number = this.value[2] ?? TransactionExplorerGeoLocationCondition.MIN_LONGITUDE;
+            const maxLongitude: number = this.value[3] ?? TransactionExplorerGeoLocationCondition.MAX_LONGITUDE;
+
+            if (this.operator === TransactionExplorerConditionOperatorType.LongitudeBetween) {
+                return `(geo_location.longitude >= ${minLongitude} AND geo_location.longitude <= ${maxLongitude})`;
+            } else if (this.operator === TransactionExplorerConditionOperatorType.LongitudeNotBetween) {
+                return `(geo_location.longitude < ${minLongitude} OR geo_location.longitude > ${maxLongitude})`;
+            }
         }
 
         return '';

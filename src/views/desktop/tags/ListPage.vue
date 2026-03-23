@@ -84,6 +84,15 @@
                                                                      v-if="allTagGroupsWithDefault.length >= 2"
                                                                      @click="showChangeGroupDisplayOrderDialog"></v-list-item>
                                                         <v-divider class="my-2"/>
+                                                        <v-list-item :prepend-icon="mdiSortAlphabeticalAscending"
+                                                                     :disabled="!tags || tags.length < 2"
+                                                                     :title="tt('Sort by Name (A to Z)')"
+                                                                     @click="sortByName(false)"></v-list-item>
+                                                        <v-list-item :prepend-icon="mdiSortAlphabeticalDescending"
+                                                                     :disabled="!tags || tags.length < 2"
+                                                                     :title="tt('Sort by Name (Z to A)')"
+                                                                     @click="sortByName(true)"></v-list-item>
+                                                        <v-divider class="my-2"/>
                                                         <v-list-item :prepend-icon="mdiEyeOutline"
                                                                      :title="tt('Show Hidden Transaction Tags')"
                                                                      v-if="!showHidden" @click="showHidden = true"></v-list-item>
@@ -347,6 +356,8 @@ import {
     mdiPencilOutline,
     mdiCheck,
     mdiClose,
+    mdiSortAlphabeticalAscending,
+    mdiSortAlphabeticalDescending,
     mdiEyeOffOutline,
     mdiEyeOutline,
     mdiSort,
@@ -586,6 +597,14 @@ function cancelSave(tag: TransactionTag): void {
         editingTag.value.name = '';
     } else {
         newTag.value = null;
+    }
+}
+
+function sortByName(desc: boolean): void {
+    const changed = transactionTagsStore.sortTagDisplayOrderByTagName(activeTagGroupId.value, desc);
+
+    if (changed) {
+        displayOrderModified.value = true;
     }
 }
 

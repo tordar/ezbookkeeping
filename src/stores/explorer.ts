@@ -8,8 +8,8 @@ import { useTransactionCategoriesStore } from './transactionCategory.ts';
 import { useTransactionTagsStore } from './transactionTag.ts';
 import { useExchangeRatesStore } from './exchangeRates.ts';
 
-import { type BeforeResolveFunction, itemAndIndex, keys, values } from '@/core/base.ts';
-import { AmountFilterType } from '@/core/numeral.ts';
+import { type BeforeResolveFunction, itemAndIndex, reversed, keys, values } from '@/core/base.ts';
+import { NumeralSystem, AmountFilterType } from '@/core/numeral.ts';
 import { DateRangeScene, DateRange } from '@/core/datetime.ts';
 import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
 import { AccountCategory } from '@/core/account.ts';
@@ -43,6 +43,7 @@ import {
     isEquals,
 } from '@/lib/common.ts';
 import {
+    getUtcOffsetByUtcOffsetMinutes,
     parseDateTimeFromUnixTime,
     parseDateTimeFromUnixTimeWithTimezoneOffset,
     getDateRangeByDateType,
@@ -111,6 +112,26 @@ export interface CategoriedTransactionExplorerDataItem extends SeriesInfo {
     value: number;
 }
 
+export interface InsightsExplorerTransactionStatisticData {
+    totalCount: number;
+    totalAmount: number;
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    averageAmount: number;
+    medianAmount: number;
+    p90Amount: number;
+    top5AmountShare?: number;
+    transactionsFor80PercentAmount?: number;
+    minimumAmount: number;
+    maximumAmount: number;
+    range: number;
+    interquartileRange: number;
+    variance?: number;
+    standardDeviation?: number;
+    coefficientOfVariation?: number;
+}
+
 export const useExplorersStore = defineStore('explorers', () => {
     const settingsStore = useSettingsStore();
     const userStore = useUserStore();
@@ -168,7 +189,7 @@ export const useExplorersStore = defineStore('explorers', () => {
             }
         } else if (dimension === TransactionExplorerDataDimension.DateTime) {
             const dateTime = isDefined(transactionTimeUtfOffset) ? parseDateTimeFromUnixTimeWithTimezoneOffset(transaction.time, transactionTimeUtfOffset) : parseDateTimeFromUnixTime(transaction.time);
-            const textualDateTime = `${dateTime.getGregorianCalendarYearDashMonthDashDay()} ${dateTime.getHour().toString(10).padStart(2, '0')}:${dateTime.getMinute().toString(10).padStart(2, '0')}:${dateTime.getSecond().toString(10).padStart(2, '0')}`;
+            const textualDateTime = `${dateTime.getGregorianCalendarYearDashMonthDashDay()} ${dateTime.getHour().toString(10).padStart(2, NumeralSystem.WesternArabicNumerals.digitZero)}:${dateTime.getMinute().toString(10).padStart(2, NumeralSystem.WesternArabicNumerals.digitZero)}:${dateTime.getSecond().toString(10).padStart(2, NumeralSystem.WesternArabicNumerals.digitZero)}`;
 
             return {
                 categoryName: textualDateTime,
@@ -259,6 +280,22 @@ export const useExplorersStore = defineStore('explorers', () => {
                 categoryId: dateTime.getGregorianCalendarQuarter().toString(10),
                 categoryIdType: TransactionExplorerDimensionType.Other,
                 categoryDisplayOrders: [dateTime.getGregorianCalendarQuarter()]
+            };
+        } else if (dimension === TransactionExplorerDataDimension.DateTimeByHourOfDay) {
+            const dateTime = isDefined(transactionTimeUtfOffset) ? parseDateTimeFromUnixTimeWithTimezoneOffset(transaction.time, transactionTimeUtfOffset) : parseDateTimeFromUnixTime(transaction.time);
+
+            return {
+                categoryName: dateTime.getHour().toString(10),
+                categoryId: dateTime.getHour().toString(10),
+                categoryIdType: TransactionExplorerDimensionType.Other,
+                categoryDisplayOrders: [dateTime.getHour()]
+            };
+        } else if (dimension === TransactionExplorerDataDimension.TimezoneOffset) {
+            return {
+                categoryName: getUtcOffsetByUtcOffsetMinutes(transaction.utcOffset),
+                categoryId: transaction.utcOffset.toString(10),
+                categoryIdType: TransactionExplorerDimensionType.Other,
+                categoryDisplayOrders: [transaction.utcOffset]
             };
         } else if (dimension === TransactionExplorerDataDimension.TransactionType) {
             let transactionTypeName = 'Unknown';
@@ -578,6 +615,121 @@ export const useExplorersStore = defineStore('explorers', () => {
         return result;
     });
 
+    const filteredTransactionsInDataTableStatistic = computed<InsightsExplorerTransactionStatisticData>(() => {
+        const defaultCurrency = userStore.currentUserDefaultCurrency;
+        const statisticData: InsightsExplorerTransactionStatisticData = {
+            totalCount: 0,
+            totalAmount: 0,
+            totalIncome: 0,
+            totalExpense: 0,
+            netIncome: 0,
+            averageAmount: 0,
+            medianAmount: 0,
+            p90Amount: 0,
+            top5AmountShare: undefined,
+            transactionsFor80PercentAmount: undefined,
+            minimumAmount: Number.MAX_SAFE_INTEGER,
+            maximumAmount: Number.MIN_SAFE_INTEGER,
+            range: 0,
+            interquartileRange: 0,
+            variance: undefined,
+            standardDeviation: undefined,
+            coefficientOfVariation: undefined
+        };
+
+        const sourceAmounts: number[] = [];
+
+        for (const transaction of filteredTransactionsInDataTable.value) {
+            statisticData.totalCount++;
+
+            let amountInDefaultCurrency: number = transaction.sourceAmount;
+
+            if (transaction.sourceAccount.currency !== defaultCurrency) {
+                const amount = exchangeRatesStore.getExchangedAmount(transaction.sourceAmount, transaction.sourceAccount.currency, defaultCurrency);
+
+                if (isNumber(amount)) {
+                    amountInDefaultCurrency = Math.trunc(amount);
+                } else {
+                    continue;
+                }
+            }
+
+            statisticData.totalAmount += amountInDefaultCurrency;
+            sourceAmounts.push(amountInDefaultCurrency);
+
+            if (transaction.type === TransactionType.Income) {
+                statisticData.totalIncome += amountInDefaultCurrency;
+            } else if (transaction.type === TransactionType.Expense) {
+                statisticData.totalExpense += amountInDefaultCurrency;
+            }
+
+            if (amountInDefaultCurrency >= 0 && amountInDefaultCurrency < statisticData.minimumAmount) {
+                statisticData.minimumAmount = amountInDefaultCurrency;
+            }
+
+            if (amountInDefaultCurrency > statisticData.maximumAmount) {
+                statisticData.maximumAmount = amountInDefaultCurrency;
+            }
+        }
+
+        statisticData.netIncome = statisticData.totalIncome - statisticData.totalExpense;
+
+        if (statisticData.minimumAmount === Number.MAX_SAFE_INTEGER) {
+            statisticData.minimumAmount = 0;
+        }
+
+        if (statisticData.maximumAmount === Number.MIN_SAFE_INTEGER) {
+            statisticData.maximumAmount = 0;
+        }
+
+        if (sourceAmounts.length > 0) {
+            statisticData.averageAmount = Math.trunc(statisticData.totalAmount / sourceAmounts.length);
+        }
+
+        statisticData.range = statisticData.maximumAmount - statisticData.minimumAmount;
+
+        if (sourceAmounts.length > 0) {
+            sourceAmounts.sort((a, b) => a - b);
+            statisticData.medianAmount = sourceAmounts[Math.floor(sourceAmounts.length / 2)] as number;
+            statisticData.p90Amount = sourceAmounts[Math.floor(sourceAmounts.length * 9 / 10)] as number;
+
+            const q1 = sourceAmounts[Math.floor(sourceAmounts.length / 4)] as number;
+            const q3 = sourceAmounts[Math.floor(sourceAmounts.length * 3 / 4)] as number;
+            statisticData.interquartileRange = q3 - q1;
+        }
+
+        if (sourceAmounts.length > 5) {
+            const top5Count = Math.ceil(sourceAmounts.length * 0.05);
+            const top5AmountSum = sourceAmounts.slice(-top5Count).reduce((sum, amount) => sum + amount, 0);
+            statisticData.top5AmountShare = statisticData.totalAmount > 0 ? 100.0 * top5AmountSum / statisticData.totalAmount : 0;
+        }
+
+        if (sourceAmounts.length > 0) {
+            const eightyPercentAmountThreshold: number = 0.8 * statisticData.totalAmount;
+            let cumulativeAmount: number = 0;
+            let cumulativeCount: number = 0;
+            for (const amount of reversed(sourceAmounts)) {
+                cumulativeAmount += amount;
+                cumulativeCount++;
+
+                if (cumulativeAmount >= eightyPercentAmountThreshold) {
+                    statisticData.transactionsFor80PercentAmount = 100.0 * cumulativeCount / sourceAmounts.length;
+                    break;
+                }
+            }
+        }
+
+        if (sourceAmounts.length > 0) {
+            const averageAmountForVarianceCalculation: number = statisticData.totalAmount / sourceAmounts.length / 100.0;
+            const sumOfSquaredDifferences: number = sourceAmounts.reduce((sum, amount) => sum + Math.pow(amount / 100.0 - averageAmountForVarianceCalculation, 2), 0);
+            statisticData.variance = sumOfSquaredDifferences / sourceAmounts.length;
+            statisticData.standardDeviation = Math.sqrt(statisticData.variance);
+            statisticData.coefficientOfVariation = averageAmountForVarianceCalculation !== 0 ? statisticData.standardDeviation / averageAmountForVarianceCalculation : undefined;
+        }
+
+        return statisticData;
+    });
+
     const categoriedTransactions = computed<Record<string, CategoriedTransactions>>(() => {
         if (!allTransactions.value || allTransactions.value.length < 1) {
             return {};
@@ -699,10 +851,45 @@ export const useExplorersStore = defineStore('explorers', () => {
                     } else {
                         value = 0;
                     }
+                } else if (valueMetric === TransactionExplorerValueMetric.SourceAmount90thPercentile) {
+                    if (allSourceAmountsInDefaultCurrency.length > 0) {
+                        allSourceAmountsInDefaultCurrency.sort((a, b) => a - b);
+                        value = allSourceAmountsInDefaultCurrency[Math.floor(allSourceAmountsInDefaultCurrency.length * 9 / 10)] as number;
+                    } else {
+                        value = 0;
+                    }
                 } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountMinimum) {
                     value = minimumSourceAmountInDefaultCurrency === Number.MAX_SAFE_INTEGER ? 0 : minimumSourceAmountInDefaultCurrency;
                 } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountMaximum) {
                     value = maximumSourceAmountInDefaultCurrency === Number.MIN_SAFE_INTEGER ? 0 : maximumSourceAmountInDefaultCurrency;
+                } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountRange) {
+                    const finalMinimumSourceAmountInDefaultCurrency = minimumSourceAmountInDefaultCurrency === Number.MAX_SAFE_INTEGER ? 0 : minimumSourceAmountInDefaultCurrency;
+                    const finalMaximumSourceAmountInDefaultCurrency = maximumSourceAmountInDefaultCurrency === Number.MIN_SAFE_INTEGER ? 0 : maximumSourceAmountInDefaultCurrency;
+                    value = finalMaximumSourceAmountInDefaultCurrency - finalMinimumSourceAmountInDefaultCurrency;
+                } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountInterquartileRange) {
+                    if (allSourceAmountsInDefaultCurrency.length > 0) {
+                        allSourceAmountsInDefaultCurrency.sort((a, b) => a - b);
+                        const q1 = allSourceAmountsInDefaultCurrency[Math.floor(allSourceAmountsInDefaultCurrency.length / 4)] as number;
+                        const q3 = allSourceAmountsInDefaultCurrency[Math.floor(allSourceAmountsInDefaultCurrency.length * 3 / 4)] as number;
+                        value = q3 - q1;
+                    } else {
+                        value = 0;
+                    }
+                } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountVariance || valueMetric === TransactionExplorerValueMetric.SourceAmountStandardDeviation || valueMetric === TransactionExplorerValueMetric.SourceAmountCoefficientOfVariation) {
+                    if (allSourceAmountsInDefaultCurrency.length > 0) {
+                        const averageSourceAmountInDefaultCurrency = totalSourceAmountSumInDefaultCurrency / allSourceAmountsInDefaultCurrency.length / 100.0;
+                        const sumOfSquaredDifferences = allSourceAmountsInDefaultCurrency.reduce((sum, amount) => sum + Math.pow(amount / 100.0 - averageSourceAmountInDefaultCurrency, 2), 0);
+
+                        if (valueMetric === TransactionExplorerValueMetric.SourceAmountVariance) {
+                            value = sumOfSquaredDifferences / allSourceAmountsInDefaultCurrency.length
+                        } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountStandardDeviation) {
+                            value = Math.sqrt(sumOfSquaredDifferences / allSourceAmountsInDefaultCurrency.length);
+                        } else if (valueMetric === TransactionExplorerValueMetric.SourceAmountCoefficientOfVariation) {
+                            value = averageSourceAmountInDefaultCurrency !== 0 ? Math.sqrt(sumOfSquaredDifferences / allSourceAmountsInDefaultCurrency.length) / averageSourceAmountInDefaultCurrency : 0;
+                        }
+                    } else {
+                        value = 0;
+                    }
                 }
 
                 dataItems.push({
@@ -1069,11 +1256,13 @@ export const useExplorersStore = defineStore('explorers', () => {
                     return;
                 }
 
-                if (insightsExplorerListStateInvalid.value) {
-                    updateInsightsExplorerListInvalidState(false);
-                }
+                loadAllInsightsExplorerBasicInfos({ force: false }).finally(() => {
+                    if (insightsExplorerListStateInvalid.value) {
+                        updateInsightsExplorerListInvalidState(false);
+                    }
 
-                resolve(data.result);
+                    resolve(data.result);
+                });
             }).catch(error => {
                 logger.error('failed to save explorers display order', error);
 
@@ -1172,6 +1361,7 @@ export const useExplorersStore = defineStore('explorers', () => {
         insightsExplorerListStateInvalid,
         // computed
         filteredTransactionsInDataTable,
+        filteredTransactionsInDataTableStatistic,
         categoriedTransactionExplorerData,
         // functions
         updateTransactionExplorerInvalidState,

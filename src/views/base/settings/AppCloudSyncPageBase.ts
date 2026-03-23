@@ -23,7 +23,14 @@ export const ALL_APPLICATION_CLOUD_SETTINGS: CategorizedApplicationCloudSettingI
     {
         categoryName: 'Basic Settings',
         items: [
-            { settingKey: 'showAccountBalance', settingName: 'Show Account Balance', mobile: true, desktop: true }
+            { settingKey: 'showAccountBalance', settingName: 'Show Account Balance', mobile: true, desktop: true },
+            { settingKey: 'autoUpdateExchangeRatesData', settingName: 'Auto-update Exchange Rates Data', mobile: true, desktop: true }
+        ]
+    },
+    {
+        categoryName: 'Navigation Bar',
+        items: [
+            { settingKey: 'showAddTransactionButtonInDesktopNavbar', settingName: 'Show Add Transaction Button', mobile: false, desktop: true }
         ]
     },
     {
@@ -46,6 +53,8 @@ export const ALL_APPLICATION_CLOUD_SETTINGS: CategorizedApplicationCloudSettingI
     {
         categoryName: 'Transaction Edit Page',
         items: [
+            { settingKey: 'quickSaveButtonStyleInMobileTransactionListPage', settingName: 'Quick Save Button Style', mobile: true, desktop: false },
+            { settingKey: 'quickAddButtonActionInMobileTransactionEditPage', settingName: 'Quick Add Button Action', mobile: true, desktop: false },
             { settingKey: 'autoSaveTransactionDraft', settingName: 'Automatically Save Draft', mobile: true, desktop: true },
             { settingKey: 'autoGetCurrentGeoLocation', settingName: 'Automatically Add Geolocation', mobile: true, desktop: true },
             { settingKey: 'alwaysShowTransactionPicturesInMobileTransactionEditPage', settingName: 'Always Show Transaction Pictures', mobile: true, desktop: false }
@@ -76,6 +85,13 @@ export const ALL_APPLICATION_CLOUD_SETTINGS: CategorizedApplicationCloudSettingI
         categoryName: 'Exchange Rates Data Page',
         items: [
             { settingKey: 'currencySortByInExchangeRatesPage', settingName: 'Sort by', mobile: true, desktop: true }
+        ]
+    },
+    {
+        categoryName: 'Browser Cache Management',
+        items: [
+            { settingKey: 'mapCacheExpiration', settingName: 'Cache Expiration for Map Data', mobile: true, desktop: true },
+            { settingKey: 'exchangeRatesDataCacheExpiration', settingName: 'Cache Expiration for Exchange Rates Data', mobile: true, desktop: true }
         ]
     },
     {

@@ -152,6 +152,7 @@ export const useSettingsStore = defineStore('settings', () => {
     function setAutoUpdateExchangeRatesData(value: boolean): void {
         updateApplicationSettingsValue('autoUpdateExchangeRatesData', value);
         appSettings.value.autoUpdateExchangeRatesData = value;
+        updateUserApplicationCloudSettingValue('autoUpdateExchangeRatesData', value);
     }
 
     function setShowAccountBalance(value: boolean): void {
@@ -185,6 +186,7 @@ export const useSettingsStore = defineStore('settings', () => {
     function setShowAddTransactionButtonInDesktopNavbar(value: boolean): void {
         updateApplicationSettingsValue('showAddTransactionButtonInDesktopNavbar', value);
         appSettings.value.showAddTransactionButtonInDesktopNavbar = value;
+        updateUserApplicationCloudSettingValue('showAddTransactionButtonInDesktopNavbar', value);
     }
 
     // Overview Page
@@ -232,6 +234,18 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     // Transaction Edit Page
+    function setQuickSaveButtonStyleInMobileTransactionListPage(value: number): void {
+        updateApplicationSettingsValue('quickSaveButtonStyleInMobileTransactionListPage', value);
+        appSettings.value.quickSaveButtonStyleInMobileTransactionListPage = value;
+        updateUserApplicationCloudSettingValue('quickSaveButtonStyleInMobileTransactionListPage', value);
+    }
+
+    function setQuickAddButtonActionInMobileTransactionEditPage(value: number): void {
+        updateApplicationSettingsValue('quickAddButtonActionInMobileTransactionEditPage', value);
+        appSettings.value.quickAddButtonActionInMobileTransactionEditPage = value;
+        updateUserApplicationCloudSettingValue('quickAddButtonActionInMobileTransactionEditPage', value);
+    }
+
     function setAutoSaveTransactionDraft(value: string): void {
         updateApplicationSettingsValue('autoSaveTransactionDraft', value);
         appSettings.value.autoSaveTransactionDraft = value;
@@ -308,6 +322,19 @@ export const useSettingsStore = defineStore('settings', () => {
         updateApplicationSettingsValue('currencySortByInExchangeRatesPage', value);
         appSettings.value.currencySortByInExchangeRatesPage = value;
         updateUserApplicationCloudSettingValue('currencySortByInExchangeRatesPage', value);
+    }
+
+    // Browser Cache Management
+    function setMapCacheExpiration(value: number): void {
+        updateApplicationSettingsValue('mapCacheExpiration', value);
+        appSettings.value.mapCacheExpiration = value;
+        updateUserApplicationCloudSettingValue('mapCacheExpiration', value);
+    }
+
+    function setExchangeRatesDataCacheExpiration(value: number): void {
+        updateApplicationSettingsValue('exchangeRatesDataCacheExpiration', value);
+        appSettings.value.exchangeRatesDataCacheExpiration = value;
+        updateUserApplicationCloudSettingValue('exchangeRatesDataCacheExpiration', value);
     }
 
     // Statistics Settings
@@ -516,6 +543,8 @@ export const useSettingsStore = defineStore('settings', () => {
         setShowTotalAmountInTransactionListPage,
         setShowTagInTransactionListPage,
         // -- Transaction Edit Page
+        setQuickSaveButtonStyleInMobileTransactionListPage,
+        setQuickAddButtonActionInMobileTransactionEditPage,
         setAutoSaveTransactionDraft,
         setAutoGetCurrentGeoLocation,
         setAlwaysShowTransactionPicturesInMobileTransactionEditPage,
@@ -531,6 +560,9 @@ export const useSettingsStore = defineStore('settings', () => {
         setHideCategoriesWithoutAccounts,
         // -- Exchange Rates Data Page
         setCurrencySortByInExchangeRatesPage,
+        // -- Browser Cache Management
+        setMapCacheExpiration,
+        setExchangeRatesDataCacheExpiration,
         // -- Statistics Settings
         setStatisticsDefaultChartDataType,
         setStatisticsDefaultTimezoneType,

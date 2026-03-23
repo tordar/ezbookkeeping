@@ -151,6 +151,57 @@ export const useTransactionTagsStore = defineStore('transactionTags', () => {
         allTransactionTagGroups.value.splice(to, 0, allTransactionTagGroups.value.splice(from, 1)[0] as TransactionTagGroup);
     }
 
+    function sortTagDisplayOrderByTagName(groupId: string, desc: boolean): boolean {
+        // update in the group list
+        const tagsInGroup = allTransactionTagsByGroupMap.value[groupId];
+
+        if (!tagsInGroup) {
+            return false;
+        }
+
+        const oldTagsInGroup: TransactionTag[] = [...tagsInGroup];
+
+        if (!desc) {
+            tagsInGroup.sort((a, b) => a.name.localeCompare(b.name, undefined, { // asc
+                numeric: true,
+                sensitivity: 'base'
+            }));
+        } else {
+            tagsInGroup.sort((a, b) => b.name.localeCompare(a.name, undefined, { // desc
+                numeric: true,
+                sensitivity: 'base'
+            }));
+        }
+
+        const isOrderChanged = !isEquals(oldTagsInGroup, tagsInGroup);
+
+        if (!isOrderChanged) {
+            return false;
+        }
+
+        // update in the main list
+        for (const [oldTag, oldIndex] of itemAndIndex(oldTagsInGroup)) {
+            const newTag = tagsInGroup[oldIndex];
+
+            if (!newTag || newTag.id === oldTag.id) {
+                continue;
+            }
+
+            for (const [tag, index] of itemAndIndex(allTransactionTags.value)) {
+                if (tag.id === oldTag.id) {
+                    allTransactionTags.value.splice(index, 1, newTag);
+                    break;
+                }
+            }
+        }
+
+        if (!transactionTagListStateInvalid.value) {
+            updateTransactionTagListInvalidState(true);
+        }
+
+        return true;
+    }
+
     function updateTagDisplayOrderInTransactionTagList({ groupId, from, to }: { groupId: string, from: number, to: number }): void {
         // update in the group list
         const tagsInGroup = allTransactionTagsByGroupMap.value[groupId];
@@ -458,11 +509,13 @@ export const useTransactionTagsStore = defineStore('transactionTags', () => {
                     return;
                 }
 
-                if (transactionTagGroupListStateInvalid.value) {
-                    updateTransactionTagGroupListInvalidState(false);
-                }
+                loadAllTagGroups({ force: false }).finally(() => {
+                    if (transactionTagGroupListStateInvalid.value) {
+                        updateTransactionTagGroupListInvalidState(false);
+                    }
 
-                resolve(data.result);
+                    resolve(data.result);
+                });
             }).catch(error => {
                 logger.error('failed to save tag groups display order', error);
 
@@ -654,11 +707,13 @@ export const useTransactionTagsStore = defineStore('transactionTags', () => {
                     return;
                 }
 
-                if (transactionTagListStateInvalid.value) {
-                    updateTransactionTagListInvalidState(false);
-                }
+                loadAllTags({ force: false }).finally(() => {
+                    if (transactionTagListStateInvalid.value) {
+                        updateTransactionTagListInvalidState(false);
+                    }
 
-                resolve(data.result);
+                    resolve(data.result);
+                });
             }).catch(error => {
                 logger.error('failed to save tags display order', error);
 
@@ -757,6 +812,7 @@ export const useTransactionTagsStore = defineStore('transactionTags', () => {
         // computed states
         allAvailableTagsCount,
         // functions
+        sortTagDisplayOrderByTagName,
         updateTransactionTagListInvalidState,
         resetTransactionTags,
         loadAllTagGroups,

@@ -25,6 +25,93 @@
                         :items="allPageCounts"
                         v-model="currentExplorer.countPerPage"
                     />
+                    <v-spacer/>
+                    <div class="d-flex align-center">
+                        <span class="text-subtitle-1">{{ tt('Total Transactions') }}</span>
+                        <span v-if="loading">
+                            <v-skeleton-loader class="skeleton-no-margin ms-2" type="text" style="width: 50px" :loading="true"></v-skeleton-loader>
+                        </span>
+                        <span class="text-subtitle-1 ms-2" v-else-if="!loading">
+                            {{ formatNumberToLocalizedNumerals(filteredTransactions.length) }}
+                        </span>
+                        <span class="text-subtitle-1 ms-3" v-if="loading || filteredTransactionsStatistic">{{ tt('Total Amount') }}</span>
+                        <span v-if="loading">
+                            <v-skeleton-loader class="skeleton-no-margin ms-2" type="text" style="width: 80px" :loading="true"></v-skeleton-loader>
+                        </span>
+                        <span class="text-subtitle-1 ms-2" v-else-if="!loading && filteredTransactionsStatistic">
+                            {{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.totalAmount) }}
+                        </span>
+                        <v-tooltip interactive class="table-tooltip" activator="parent" v-if="!loading && filteredTransactions.length > 0 && filteredTransactionsStatistic">
+                            <v-table density="compact">
+                                <tbody>
+                                <tr>
+                                    <td>{{ tt('Total Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.totalAmount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Total Income') }}</td>
+                                    <td class="text-end text-income">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.totalIncome) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Total Expense') }}</td>
+                                    <td class="text-end text-expense">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.totalExpense) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Net Income') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.netIncome) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Average Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.averageAmount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Median Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.medianAmount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('90th Percentile Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.p90Amount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Top 5 Amount Share') }}</td>
+                                    <td class="text-end">{{ isDefined(filteredTransactionsStatistic.top5AmountShare) ? formatPercentToLocalizedNumerals(filteredTransactionsStatistic.top5AmountShare, 2, '<0.01') : '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Transactions for 80% of Amount') }}</td>
+                                    <td class="text-end">{{ isDefined(filteredTransactionsStatistic.transactionsFor80PercentAmount) ? formatPercentToLocalizedNumerals(filteredTransactionsStatistic.transactionsFor80PercentAmount, 2, '<0.01') : '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Minimum Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.minimumAmount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Maximum Amount') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.maximumAmount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Range (Max - Min)') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.range) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Interquartile Range (Q3 - Q1)') }}</td>
+                                    <td class="text-end">{{ formatAmountToLocalizedNumeralsWithCurrency(filteredTransactionsStatistic.interquartileRange) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Variance') }}</td>
+                                    <td class="text-end">{{ isDefined(filteredTransactionsStatistic.variance) ? formatNumberToLocalizedNumerals(filteredTransactionsStatistic.variance, 2) : '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Standard Deviation') }}</td>
+                                    <td class="text-end">{{ isDefined(filteredTransactionsStatistic.standardDeviation) ? formatNumberToLocalizedNumerals(filteredTransactionsStatistic.standardDeviation, 2) : '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ tt('Coefficient of Variation') }}</td>
+                                    <td class="text-end">{{ isDefined(filteredTransactionsStatistic.coefficientOfVariation) ? formatNumberToLocalizedNumerals(filteredTransactionsStatistic.coefficientOfVariation, 2) : '-' }}</td>
+                                </tr>
+                                </tbody>
+                            </v-table>
+                        </v-tooltip>
+                    </div>
                 </div>
             </v-col>
         </v-row>
@@ -126,7 +213,7 @@ import { useI18n } from '@/locales/helpers.ts';
 
 import { useSettingsStore } from '@/stores/setting.ts';
 import { useUserStore } from '@/stores/user.ts';
-import { useExplorersStore } from '@/stores/explorer.ts';
+import { type InsightsExplorerTransactionStatisticData, useExplorersStore } from '@/stores/explorer.ts';
 
 import { type NameValue, type NameNumeralValue, itemAndIndex } from '@/core/base.ts';
 import type { NumeralSystem } from '@/core/numeral.ts';
@@ -135,7 +222,7 @@ import { TransactionType } from '@/core/transaction.ts';
 import type { TransactionInsightDataItem } from '@/models/transaction.ts';
 import type { InsightsExplorer} from '@/models/explorer.ts';
 
-import { replaceAll } from '@/lib/common.ts';
+import { isDefined, replaceAll } from '@/lib/common.ts';
 
 import {
     getUtcOffsetByUtcOffsetMinutes,
@@ -166,7 +253,9 @@ const {
     formatDateTimeToLongDateTime,
     formatDateTimeToGregorianDefaultDateTime,
     formatAmountToWesternArabicNumeralsWithoutDigitGrouping,
-    formatAmountToLocalizedNumeralsWithCurrency
+    formatAmountToLocalizedNumeralsWithCurrency,
+    formatNumberToLocalizedNumerals,
+    formatPercentToLocalizedNumerals
 } = useI18n();
 
 const settingsStore = useSettingsStore();
@@ -181,6 +270,7 @@ const defaultCurrency = computed<string>(() => userStore.currentUserDefaultCurre
 const currentExplorer = computed<InsightsExplorer>(() => explorersStore.currentInsightsExplorer);
 
 const filteredTransactions = computed<TransactionInsightDataItem[]>(() => explorersStore.filteredTransactionsInDataTable);
+const filteredTransactionsStatistic = computed<InsightsExplorerTransactionStatisticData | undefined>(() => explorersStore.filteredTransactionsInDataTableStatistic);
 
 const allDataTableQuerySources = computed<NameValue[]>(() => {
     const sources: NameValue[] = [];

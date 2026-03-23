@@ -196,7 +196,8 @@
                 <f7-icon f7="creditcard"></f7-icon>
                 <span class="tabbar-label">{{ tt('Accounts') }}</span>
             </f7-link>
-            <f7-link id="homepage-add-button" class="link" href="/transaction/add" @taphold="openTransactionTemplatePopover">
+            <f7-link id="homepage-add-button" class="link dragenabled"
+                     href="/transaction/add" @taphold="openTransactionTemplatePopover">
                 <f7-icon f7="plus_square" class="ebk-tarbar-big-icon"></f7-icon>
             </f7-link>
             <f7-link class="link" href="/statistic/transaction">
@@ -229,13 +230,16 @@
             </f7-list>
         </f7-popover>
 
-        <a-i-image-recognition-sheet v-model:show="showAIReceiptImageRecognitionSheet"
+        <a-i-image-recognition-sheet ref="aiImageRecognitionSheet"
+                                     v-model:show="showAIReceiptImageRecognitionSheet"
                                      @recognition:change="onReceiptRecognitionChanged"/>
     </f7-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import AIImageRecognitionSheet from '@/components/mobile/AIImageRecognitionSheet.vue';
+
+import { ref, computed, useTemplateRef } from 'vue';
 import type { Router } from 'framework7/types';
 
 import { useI18n } from '@/locales/helpers.ts';
@@ -253,8 +257,11 @@ import { TransactionTemplate } from '@/models/transaction_template.ts';
 import type { RecognizedReceiptImageResponse } from '@/models/large_language_model.ts';
 
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
+import { getShareCacheImageBlob } from '@/lib/cache.ts';
 import { isTransactionFromAIImageRecognitionEnabled } from '@/lib/server_settings.ts';
 import { getCachedNewTransactions } from '@/lib/bank_transactions_cache.ts';
+
+type AIImageRecognitionSheetType = InstanceType<typeof AIImageRecognitionSheet>;
 
 const props = defineProps<{
     f7router: Router.Router;
@@ -275,6 +282,8 @@ const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 const transactionTemplatesStore = useTransactionTemplatesStore();
 const overviewStore = useOverviewStore();
+
+const aiImageRecognitionSheet = useTemplateRef<AIImageRecognitionSheetType>('aiImageRecognitionSheet');
 
 const loading = ref<boolean>(true);
 const showTransactionTemplatePopover = ref<boolean>(false);
@@ -305,13 +314,19 @@ function init(): void {
         loading.value = true;
 
         const promises = [
+            getShareCacheImageBlob(),
             accountsStore.loadAllAccounts({ force: false }),
             transactionCategoriesStore.loadAllCategories({ force: false }),
             transactionTemplatesStore.loadAllTemplates({ templateType: TemplateType.Normal.type,  force: false }),
             overviewStore.loadTransactionOverview({ force: false })
         ];
 
-        Promise.all(promises).then(() => {
+        Promise.all(promises).then(responses => {
+            if (responses[0] && responses[0] instanceof Blob) {
+                aiImageRecognitionSheet.value?.loadImage(responses[0]);
+                showAIReceiptImageRecognitionSheet.value = true;
+            }
+
             loading.value = false;
             loadNewTransactionCount();
         }).catch(error => {

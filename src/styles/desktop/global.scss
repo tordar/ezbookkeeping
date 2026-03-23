@@ -174,6 +174,11 @@ html[dir="rtl"] .bidirectional-switch {
     background-color: #2f2f2f;
 }
 
+.chart-tooltip-table {
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
 /** Common class for replacing the default style of vuetify **/
 .v-input.v-input--readonly input,
 .v-input.v-input--readonly textarea,
@@ -404,6 +409,16 @@ html[dir="rtl"] .v-img.img-with-direction > img {
 .v-tooltip {
     .v-overlay__content {
         color: rgb(var(--v-tooltip-color));
+    }
+}
+
+.table-tooltip {
+    &.v-tooltip > .v-overlay__content {
+        background-color: initial;
+
+        .v-table {
+            box-shadow: 0 6px 16px 0 rgba(var(--v-shadow-key-umbra-color), var(--v-shadow-lg-opacity)), 0 0 transparent, 0 0 transparent;
+        }
     }
 }
 

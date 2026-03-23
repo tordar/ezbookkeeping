@@ -4,17 +4,27 @@ import { DateRange } from '@/core/datetime.ts';
 export enum TransactionExplorerConditionRelation {
     First = 'first',
     And = 'and',
-    Or = 'or'
+    Or = 'or',
+    AndSub = 'and(',
+    OrSub = 'or(',
+    SubEnd = ')'
 }
+
+export type TransactionExplorerSubConditionStartRelation = '(';
+export const TransactionExplorerSubConditionStartRelationPlaceholder: TransactionExplorerSubConditionStartRelation = '(';
 
 export const TransactionExplorerConditionRelationPriority: Record<TransactionExplorerConditionRelation, number> = {
     [TransactionExplorerConditionRelation.First]: 0,
     [TransactionExplorerConditionRelation.Or]: 1,
-    [TransactionExplorerConditionRelation.And]: 2
+    [TransactionExplorerConditionRelation.And]: 2,
+    [TransactionExplorerConditionRelation.AndSub]: 0,
+    [TransactionExplorerConditionRelation.OrSub]: 0,
+    [TransactionExplorerConditionRelation.SubEnd]: 0
 };
 
 
 export enum TransactionExplorerConditionFieldType {
+    Undefined = 'undefined',
     TransactionType = 'transactionType',
     TransactionCategory = 'transactionCategory',
     SourceAccount = 'sourceAccount',
@@ -81,7 +91,11 @@ export enum TransactionExplorerConditionOperatorType {
     StartsWith = 'startsWith',
     NotStartsWith = 'notStartsWith',
     EndsWith = 'endsWith',
-    NotEndsWith = 'notEndsWith'
+    NotEndsWith = 'notEndsWith',
+    LatitudeBetween = 'latitudeBetween',
+    LatitudeNotBetween = 'latitudeNotBetween',
+    LongitudeBetween = 'longitudeBetween',
+    LongitudeNotBetween = 'longitudeNotBetween'
 }
 
 export class TransactionExplorerConditionOperator implements NameValue {
@@ -107,6 +121,10 @@ export class TransactionExplorerConditionOperator implements NameValue {
     public static readonly NotStartsWith = new TransactionExplorerConditionOperator('Not starts with', TransactionExplorerConditionOperatorType.NotStartsWith);
     public static readonly EndsWith = new TransactionExplorerConditionOperator('Ends with', TransactionExplorerConditionOperatorType.EndsWith);
     public static readonly NotEndsWith = new TransactionExplorerConditionOperator('Not ends with', TransactionExplorerConditionOperatorType.NotEndsWith);
+    public static readonly LatitudeBetween = new TransactionExplorerConditionOperator('Latitude between', TransactionExplorerConditionOperatorType.LatitudeBetween);
+    public static readonly LatitudeNotBetween = new TransactionExplorerConditionOperator('Latitude not between', TransactionExplorerConditionOperatorType.LatitudeNotBetween);
+    public static readonly LongitudeBetween = new TransactionExplorerConditionOperator('Longitude between', TransactionExplorerConditionOperatorType.LongitudeBetween);
+    public static readonly LongitudeNotBetween = new TransactionExplorerConditionOperator('Longitude not between', TransactionExplorerConditionOperatorType.LongitudeNotBetween);
 
     public readonly name: string;
     public readonly value: TransactionExplorerConditionOperatorType;
@@ -191,6 +209,8 @@ export enum TransactionExplorerDataDimensionType {
     DateTimeByDayOfMonth = 'dateTimeByDayOfMonth',
     DateTimeByMonthOfYear = 'dateTimeByMonthOfYear',
     DateTimeByQuarterOfYear = 'dateTimeByQuarterOfYear',
+    DateTimeByHourOfDay = 'dateTimeByHourOfDay',
+    TimezoneOffset = 'timezoneOffset',
     TransactionType = 'transactionType',
     SourceAccount = 'sourceAccount',
     SourceAccountCategory = 'sourceAccountCategory',
@@ -220,6 +240,8 @@ export class TransactionExplorerDataDimension implements NameValue {
     public static readonly DateTimeByDayOfMonth = new TransactionExplorerDataDimension('Transaction Day of Month', TransactionExplorerDataDimensionType.DateTimeByDayOfMonth);
     public static readonly DateTimeByMonthOfYear = new TransactionExplorerDataDimension('Transaction Month of Year', TransactionExplorerDataDimensionType.DateTimeByMonthOfYear);
     public static readonly DateTimeByQuarterOfYear = new TransactionExplorerDataDimension('Transaction Quarter of Year', TransactionExplorerDataDimensionType.DateTimeByQuarterOfYear);
+    public static readonly DateTimeByHourOfDay = new TransactionExplorerDataDimension('Transaction Hour of Day', TransactionExplorerDataDimensionType.DateTimeByHourOfDay);
+    public static readonly TimezoneOffset = new TransactionExplorerDataDimension('Transaction Timezone', TransactionExplorerDataDimensionType.TimezoneOffset);
     public static readonly TransactionType = new TransactionExplorerDataDimension('Transaction Type', TransactionExplorerDataDimensionType.TransactionType);
     public static readonly SourceAccount = new TransactionExplorerDataDimension('Source Account', TransactionExplorerDataDimensionType.SourceAccount);
     public static readonly SourceAccountCategory = new TransactionExplorerDataDimension('Source Account Category', TransactionExplorerDataDimensionType.SourceAccountCategory);
@@ -260,31 +282,45 @@ export enum TransactionExplorerValueMetricType {
     SourceAmountSum = 'sourceAmountSum',
     SourceAmountAverage = 'sourceAmountAverage',
     SourceAmountMedian = 'sourceAmountMedian',
+    SourceAmount90thPercentile = 'source90thPercentileAmount',
     SourceAmountMinimum = 'sourceAmountMinimum',
-    SourceAmountMaximum = 'sourceAmountMaximum'
+    SourceAmountMaximum = 'sourceAmountMaximum',
+    SourceAmountRange = 'sourceAmountRange',
+    SourceAmountInterquartileRange = 'sourceAmountInterquartileRange',
+    SourceAmountVariance = 'sourceAmountVariance',
+    SourceAmountStandardDeviation = 'sourceAmountStandardDeviation',
+    SourceAmountCoefficientOfVariation = 'sourceAmountCoefficientOfVariation'
 }
 
 export class TransactionExplorerValueMetric implements NameValue {
     private static readonly allInstances: TransactionExplorerValueMetric[] = [];
     private static readonly allInstancesByValue: Record<string, TransactionExplorerValueMetric> = {};
 
-    public static readonly TransactionCount = new TransactionExplorerValueMetric('Transaction Count', TransactionExplorerValueMetricType.TransactionCount, false);
-    public static readonly SourceAmountSum = new TransactionExplorerValueMetric('Total Amount', TransactionExplorerValueMetricType.SourceAmountSum, true);
-    public static readonly SourceAmountAverage = new TransactionExplorerValueMetric('Average Amount', TransactionExplorerValueMetricType.SourceAmountAverage, true);
-    public static readonly SourceAmountMedian = new TransactionExplorerValueMetric('Median Amount', TransactionExplorerValueMetricType.SourceAmountMedian, true);
-    public static readonly SourceAmountMinimum = new TransactionExplorerValueMetric('Minimum Amount', TransactionExplorerValueMetricType.SourceAmountMinimum, true);
-    public static readonly SourceAmountMaximum = new TransactionExplorerValueMetric('Maximum Amount', TransactionExplorerValueMetricType.SourceAmountMaximum, true);
+    public static readonly TransactionCount = new TransactionExplorerValueMetric('Transaction Count', TransactionExplorerValueMetricType.TransactionCount, false, true);
+    public static readonly SourceAmountSum = new TransactionExplorerValueMetric('Total Amount', TransactionExplorerValueMetricType.SourceAmountSum, true, true);
+    public static readonly SourceAmountAverage = new TransactionExplorerValueMetric('Average Amount', TransactionExplorerValueMetricType.SourceAmountAverage, true, true);
+    public static readonly SourceAmountMedian = new TransactionExplorerValueMetric('Median Amount', TransactionExplorerValueMetricType.SourceAmountMedian, true, true);
+    public static readonly SourceAmount90thPercentile = new TransactionExplorerValueMetric('90th Percentile Amount', TransactionExplorerValueMetricType.SourceAmount90thPercentile, true, true);
+    public static readonly SourceAmountMinimum = new TransactionExplorerValueMetric('Minimum Amount', TransactionExplorerValueMetricType.SourceAmountMinimum, true, true);
+    public static readonly SourceAmountMaximum = new TransactionExplorerValueMetric('Maximum Amount', TransactionExplorerValueMetricType.SourceAmountMaximum, true, true);
+    public static readonly SourceAmountRange = new TransactionExplorerValueMetric('Range (Max - Min)', TransactionExplorerValueMetricType.SourceAmountRange, true, true);
+    public static readonly SourceAmountInterquartileRange = new TransactionExplorerValueMetric('Interquartile Range (Q3 - Q1)', TransactionExplorerValueMetricType.SourceAmountInterquartileRange, true, true);
+    public static readonly SourceAmountVariance = new TransactionExplorerValueMetric('Variance', TransactionExplorerValueMetricType.SourceAmountVariance, false, false);
+    public static readonly SourceAmountStandardDeviation = new TransactionExplorerValueMetric('Standard Deviation', TransactionExplorerValueMetricType.SourceAmountStandardDeviation, false, false);
+    public static readonly SourceAmountCoefficientOfVariation = new TransactionExplorerValueMetric('Coefficient of Variation', TransactionExplorerValueMetricType.SourceAmountCoefficientOfVariation, false, false);
 
     public static readonly Default = TransactionExplorerValueMetric.SourceAmountSum;
 
     public readonly name: string;
     public readonly value: TransactionExplorerValueMetricType;
     public readonly isAmount: boolean;
+    public readonly supportSum: boolean;
 
-    private constructor(name: string, value: TransactionExplorerValueMetricType, isAmount: boolean) {
+    private constructor(name: string, value: TransactionExplorerValueMetricType, isAmount: boolean, supportSum: boolean) {
         this.name = name;
         this.value = value;
         this.isAmount = isAmount;
+        this.supportSum = supportSum;
 
         TransactionExplorerValueMetric.allInstances.push(this);
         TransactionExplorerValueMetric.allInstancesByValue[value] = this;

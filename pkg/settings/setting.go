@@ -128,7 +128,6 @@ const (
 
 // Exchange rates data source types
 const (
-	ReserveBankOfAustraliaDataSource  string = "reserve_bank_of_australia"
 	BankOfCanadaDataSource            string = "bank_of_canada"
 	CzechNationalBankDataSource       string = "czech_national_bank"
 	DanmarksNationalbankDataSource    string = "danmarks_national_bank"
@@ -371,6 +370,7 @@ type Config struct {
 	PasswordResetTokenExpiredTime         uint32
 	PasswordResetTokenExpiredTimeDuration time.Duration
 	EnableAPIToken                        bool
+	APITokenAllowedRemoteIPs              []*core.IPPattern
 	MaxFailuresPerIpPerMinute             uint32
 	MaxFailuresPerUserPerMinute           uint32
 
@@ -681,29 +681,13 @@ func loadServerConfiguration(config *Config, configFile *ini.File, sectionName s
 }
 
 func loadMCPServerConfiguration(config *Config, configFile *ini.File, sectionName string) error {
+	var err error
+
 	config.EnableMCPServer = getConfigItemBoolValue(configFile, sectionName, "enable_mcp", false)
-	mcpAllowedRemoteIps := getConfigItemStringValue(configFile, sectionName, "mcp_allowed_remote_ips", "")
+	config.MCPAllowedRemoteIPs, err = getIPPatterns(configFile, sectionName, "mcp_allowed_remote_ips", "")
 
-	if mcpAllowedRemoteIps != "" {
-		remoteIPs := strings.Split(mcpAllowedRemoteIps, ",")
-		config.MCPAllowedRemoteIPs = make([]*core.IPPattern, 0, len(remoteIPs))
-
-		for i := 0; i < len(remoteIPs); i++ {
-			ip := strings.TrimSpace(remoteIPs[i])
-			pattern, err := core.ParseIPPattern(ip)
-
-			if err != nil {
-				return err
-			}
-
-			if pattern == nil {
-				continue
-			}
-
-			config.MCPAllowedRemoteIPs = append(config.MCPAllowedRemoteIPs, pattern)
-		}
-	} else {
-		config.MCPAllowedRemoteIPs = nil
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -990,6 +974,8 @@ func loadCronConfiguration(config *Config, configFile *ini.File, sectionName str
 }
 
 func loadSecurityConfiguration(config *Config, configFile *ini.File, sectionName string) error {
+	var err error
+
 	config.SecretKeyNoSet = !getConfigItemIsSet(configFile, sectionName, "secret_key")
 	config.SecretKey = getConfigItemStringValue(configFile, sectionName, "secret_key", defaultSecretKey)
 
@@ -1032,6 +1018,11 @@ func loadSecurityConfiguration(config *Config, configFile *ini.File, sectionName
 	config.PasswordResetTokenExpiredTimeDuration = time.Duration(config.PasswordResetTokenExpiredTime) * time.Second
 
 	config.EnableAPIToken = getConfigItemBoolValue(configFile, sectionName, "enable_api_token", false)
+	config.APITokenAllowedRemoteIPs, err = getIPPatterns(configFile, sectionName, "api_token_allowed_remote_ips", "")
+
+	if err != nil {
+		return err
+	}
 
 	config.MaxFailuresPerIpPerMinute = getConfigItemUint32Value(configFile, sectionName, "max_failures_per_ip_per_minute", defaultMaxFailuresPerIpPerMinute)
 	config.MaxFailuresPerUserPerMinute = getConfigItemUint32Value(configFile, sectionName, "max_failures_per_user_per_minute", defaultMaxFailuresPerUserPerMinute)
@@ -1231,8 +1222,7 @@ func loadMapConfiguration(config *Config, configFile *ini.File, sectionName stri
 func loadExchangeRatesConfiguration(config *Config, configFile *ini.File, sectionName string) error {
 	dataSource := getConfigItemStringValue(configFile, sectionName, "data_source")
 
-	if dataSource == ReserveBankOfAustraliaDataSource ||
-		dataSource == BankOfCanadaDataSource ||
+	if dataSource == BankOfCanadaDataSource ||
 		dataSource == CzechNationalBankDataSource ||
 		dataSource == DanmarksNationalbankDataSource ||
 		dataSource == EuroCentralBankDataSource ||
@@ -1293,6 +1283,34 @@ func getFinalPath(workingPath, p string) (string, error) {
 	}
 
 	return p, err
+}
+
+func getIPPatterns(configFile *ini.File, sectionName string, itemName string, defaultValue string) ([]*core.IPPattern, error) {
+	configValue := getConfigItemStringValue(configFile, sectionName, itemName, defaultValue)
+
+	if configValue == "" {
+		return nil, nil
+	}
+
+	remoteIPs := strings.Split(configValue, ",")
+	ipPatterns := make([]*core.IPPattern, 0, len(remoteIPs))
+
+	for i := 0; i < len(remoteIPs); i++ {
+		ip := strings.TrimSpace(remoteIPs[i])
+		pattern, err := core.ParseIPPattern(ip)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if pattern == nil {
+			continue
+		}
+
+		ipPatterns = append(ipPatterns, pattern)
+	}
+
+	return ipPatterns, nil
 }
 
 func getMultiLanguageContentConfig(configFile *ini.File, sectionName string, enableKey string, contentKey string) MultiLanguageContentConfig {
