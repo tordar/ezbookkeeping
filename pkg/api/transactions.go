@@ -1200,8 +1200,8 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 	clientTimezone, err := c.GetClientTimezone()
 
 	if err != nil {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] cannot get client timezone, because %s", err.Error())
-		return nil, errs.ErrClientTimezoneOffsetInvalid
+		// Fall back to utcOffset from request body
+		clientTimezone = time.FixedZone("Client Timezone", int(quickAddReq.UtcOffset)*60)
 	}
 
 	user, err := a.users.GetUserById(c, uid)

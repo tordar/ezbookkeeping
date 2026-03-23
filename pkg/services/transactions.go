@@ -2865,6 +2865,9 @@ func (s *TransactionService) isCategoryValid(sess *xorm.Session, transaction *mo
 		if transaction.CategoryId != 0 {
 			return errs.ErrBalanceModificationTransactionCannotSetCategory
 		}
+	} else if transaction.CategoryId == 0 {
+		// Allow uncategorized transactions (e.g. from quick_add with no category match)
+		return nil
 	} else {
 		category := &models.TransactionCategory{}
 		has, err := sess.ID(transaction.CategoryId).Where("uid=? AND deleted=?", transaction.Uid, false).Get(category)
