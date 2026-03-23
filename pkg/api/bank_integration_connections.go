@@ -356,7 +356,7 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 	}
 
 	uid := c.GetCurrentUid()
-	_, err := a.connections.GetConnectionBySessionId(c, uid, sessionId)
+	conn, err := a.connections.GetConnectionBySessionId(c, uid, sessionId)
 	if err != nil {
 		return nil, errs.Or(err, errs.ErrBankConnectionNotFound)
 	}
@@ -383,9 +383,6 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
 
-	if conn.SelectedAccountUID != "" {
-		accountUIDs = []string{conn.SelectedAccountUID}
-	}
 	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
 	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
 		accountUIDs = accountUIDs[:1]
@@ -478,22 +475,18 @@ func (a *BankIntegrationConnectionsApi) GetConnectionTransactionsHandler(c *core
 // fetchConnectionTransactions48h returns all transactions in the last 48h for one connection (for new-transactions list)
 func (a *BankIntegrationConnectionsApi) fetchConnectionTransactions48h(c *core.WebContext, client *enablebanking.Client, conn *models.UserBankConnection) []*models.NewBankTransactionItem {
 	var accountUIDs []string
-	if conn.SelectedAccountUID != "" {
-		accountUIDs = []string{conn.SelectedAccountUID}
-	} else {
-		session, goErr := client.GetSession(conn.SessionId)
-		if goErr != nil {
-			log.Warnf(c, "[bank_integration.fetchConnectionTransactions48h] GetSession %s failed: %s", conn.SessionId, goErr.Error())
-			return nil
+	session, goErr := client.GetSession(conn.SessionId)
+	if goErr != nil {
+		log.Warnf(c, "[bank_integration.fetchConnectionTransactions48h] GetSession %s failed: %s", conn.SessionId, goErr.Error())
+		return nil
+	}
+	for _, acc := range session.AccountsData {
+		if acc.UID != "" {
+			accountUIDs = append(accountUIDs, acc.UID)
 		}
-		for _, acc := range session.AccountsData {
-			if acc.UID != "" {
-				accountUIDs = append(accountUIDs, acc.UID)
-			}
-		}
-		if len(accountUIDs) == 0 {
-			accountUIDs = append(accountUIDs, session.Accounts...)
-		}
+	}
+	if len(accountUIDs) == 0 {
+		accountUIDs = append(accountUIDs, session.Accounts...)
 	}
 	// DNB returns multiple accounts; only fetch from the first (Brukskonto)
 	if conn.AspspName == "DNB" && len(accountUIDs) > 1 {
@@ -663,7 +656,7 @@ func (a *BankIntegrationConnectionsApi) AcceptNewTransactionHandler(c *core.WebC
 		txType = models.TRANSACTION_DB_TYPE_INCOME
 	} else {
 		txType = models.TRANSACTION_DB_TYPE_EXPENSE
-		if amount > 0 {
+		if amount < 0 {
 			amount = -amount
 		}
 	}

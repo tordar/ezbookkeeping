@@ -22,7 +22,6 @@ type UserBankConnectionResponse struct {
 	AspspName           string `json:"aspspName"`
 	AspspCountry        string `json:"aspspCountry"`
 	ValidUntil          string `json:"validUntil,omitempty"`
-	SelectedAccountUID  string `json:"selectedAccountUid,omitempty"`
 	SelectedAccountName string `json:"selectedAccountName,omitempty"`
 	DefaultAccountId    int64  `json:"defaultAccountId,string,omitempty"`
 	CreatedAt           int64  `json:"createdAt"`
