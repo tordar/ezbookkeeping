@@ -481,7 +481,7 @@ func (s *TransactionService) GetMostFrequentCategoryByComment(c core.Context, ui
 
 	var results []CategoryCount
 	err := s.UserDataDB(uid).NewSession(c).
-		SQL("SELECT category_id, COUNT(*) as cnt FROM transaction WHERE uid=? AND deleted=? AND type=? AND comment LIKE ? AND category_id > 0 GROUP BY category_id ORDER BY cnt DESC LIMIT 1",
+		SQL("SELECT category_id, COUNT(*) as cnt FROM \"transaction\" WHERE uid=? AND deleted=? AND type=? AND comment LIKE ? AND category_id > 0 GROUP BY category_id ORDER BY cnt DESC LIMIT 1",
 			uid, false, transactionDbType, "%%"+keyword+"%%").
 		Find(&results)
 
