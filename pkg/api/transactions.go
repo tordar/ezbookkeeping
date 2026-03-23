@@ -1138,6 +1138,112 @@ func (a *TransactionsApi) TransactionCreateHandler(c *core.WebContext) (any, *er
 	return transactionResp, nil
 }
 
+// TransactionQuickAddHandler creates a new expense transaction with automatic category guessing
+func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *errs.Error) {
+	var quickAddReq models.TransactionQuickAddRequest
+	err := c.ShouldBindJSON(&quickAddReq)
+
+	if err != nil {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] parse request failed, because %s", err.Error())
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
+	}
+
+	uid := c.GetCurrentUid()
+
+	// Resolve account
+	var accountId int64
+
+	if quickAddReq.AccountId > 0 {
+		accountId = quickAddReq.AccountId
+	} else if quickAddReq.AccountName != "" {
+		account, err := a.accounts.GetAccountByName(c, uid, quickAddReq.AccountName)
+
+		if err != nil {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] account not found by name \"%s\" for user \"uid:%d\", because %s", quickAddReq.AccountName, uid, err.Error())
+			return nil, errs.ErrQuickAddAccountNotFoundByName
+		}
+
+		accountId = account.AccountId
+	} else {
+		return nil, errs.ErrQuickAddMissingAccountInfo
+	}
+
+	// Guess category from transaction history
+	categoryId, err := a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+
+	if err != nil {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
+		// Non-fatal: proceed with categoryId = 0
+		categoryId = 0
+	}
+
+	// Convert amount to cents
+	amountCents := int64(math.Round(quickAddReq.Amount * 100))
+
+	// Build the transaction create request and reuse existing logic
+	transactionCreateReq := &models.TransactionCreateRequest{
+		Type:            models.TRANSACTION_TYPE_EXPENSE,
+		CategoryId:      categoryId,
+		Time:            quickAddReq.Time,
+		UtcOffset:       quickAddReq.UtcOffset,
+		SourceAccountId: accountId,
+		SourceAmount:    amountCents,
+		Comment:         quickAddReq.Merchant,
+		GeoLocation:     quickAddReq.GeoLocation,
+	}
+
+	clientTimezone, err := c.GetClientTimezone()
+
+	if err != nil {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] cannot get client timezone, because %s", err.Error())
+		return nil, errs.ErrClientTimezoneOffsetInvalid
+	}
+
+	user, err := a.users.GetUserById(c, uid)
+
+	if err != nil {
+		if !errs.IsCustomError(err) {
+			log.Errorf(c, "[transactions.TransactionQuickAddHandler] failed to get user, because %s", err.Error())
+		}
+
+		return nil, errs.ErrUserNotFound
+	}
+
+	transaction := a.createNewTransactionModel(uid, transactionCreateReq, c.ClientIP())
+	transactionEditable := user.CanEditTransactionByTransactionTime(transaction.TransactionTime, clientTimezone)
+
+	if !transactionEditable {
+		return nil, errs.ErrCannotCreateTransactionWithThisTransactionTime
+	}
+
+	err = a.transactions.CreateTransaction(c, transaction, nil, nil)
+
+	if err != nil {
+		log.Errorf(c, "[transactions.TransactionQuickAddHandler] failed to create transaction \"id:%d\" for user \"uid:%d\", because %s", transaction.TransactionId, uid, err.Error())
+		return nil, errs.Or(err, errs.ErrOperationFailed)
+	}
+
+	log.Infof(c, "[transactions.TransactionQuickAddHandler] user \"uid:%d\" has created a new quick-add transaction \"id:%d\" (merchant=%s, category=%d) successfully", uid, transaction.TransactionId, quickAddReq.Merchant, categoryId)
+
+	// Look up category name for the response
+	categoryName := ""
+
+	if categoryId > 0 {
+		category, err := a.transactionCategories.GetCategoryByCategoryId(c, uid, categoryId)
+
+		if err == nil && category != nil {
+			categoryName = category.Name
+		}
+	}
+
+	transactionResp := transaction.ToTransactionInfoResponse(nil, transactionEditable)
+
+	return &models.TransactionQuickAddResponse{
+		TransactionInfoResponse: transactionResp,
+		CategoryName:            categoryName,
+	}, nil
+}
+
 // TransactionModifyHandler saves an existed transaction by request parameters for current user
 func (a *TransactionsApi) TransactionModifyHandler(c *core.WebContext) (any, *errs.Error) {
 	var transactionModifyReq models.TransactionModifyRequest

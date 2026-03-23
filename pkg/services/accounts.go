@@ -57,6 +57,33 @@ func (s *AccountService) GetAllAccountsByUid(c core.Context, uid int64) ([]*mode
 	return accounts, err
 }
 
+// GetAccountByName returns the first account whose name contains the search string (case-insensitive)
+func (s *AccountService) GetAccountByName(c core.Context, uid int64, name string) (*models.Account, error) {
+	if uid <= 0 {
+		return nil, errs.ErrUserIdInvalid
+	}
+
+	if name == "" {
+		return nil, errs.ErrAccountIdInvalid
+	}
+
+	accounts, err := s.GetAllAccountsByUid(c, uid)
+
+	if err != nil {
+		return nil, err
+	}
+
+	nameLower := strings.ToLower(name)
+
+	for _, account := range accounts {
+		if strings.Contains(strings.ToLower(account.Name), nameLower) {
+			return account, nil
+		}
+	}
+
+	return nil, errs.ErrAccountNotFound
+}
+
 // GetAccountByAccountId returns account model according to account id
 func (s *AccountService) GetAccountByAccountId(c core.Context, uid int64, accountId int64) (*models.Account, error) {
 	if uid <= 0 {

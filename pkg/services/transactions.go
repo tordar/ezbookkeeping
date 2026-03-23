@@ -463,6 +463,39 @@ func (s *TransactionService) GetTransactionCount(c core.Context, uid int64, maxT
 	return sess.Count(&models.Transaction{})
 }
 
+// GetMostFrequentCategoryByComment returns the most frequently used category ID for transactions
+// whose comment matches the given keyword (LIKE match). Returns 0 if no matching transactions found.
+func (s *TransactionService) GetMostFrequentCategoryByComment(c core.Context, uid int64, keyword string, transactionDbType models.TransactionDbType) (int64, error) {
+	if uid <= 0 {
+		return 0, errs.ErrUserIdInvalid
+	}
+
+	if keyword == "" {
+		return 0, nil
+	}
+
+	type CategoryCount struct {
+		CategoryId int64 `xorm:"category_id"`
+		Cnt        int64 `xorm:"cnt"`
+	}
+
+	var results []CategoryCount
+	err := s.UserDataDB(uid).NewSession(c).
+		SQL("SELECT category_id, COUNT(*) as cnt FROM transaction WHERE uid=? AND deleted=? AND type=? AND comment LIKE ? AND category_id > 0 GROUP BY category_id ORDER BY cnt DESC LIMIT 1",
+			uid, false, transactionDbType, "%%"+keyword+"%%").
+		Find(&results)
+
+	if err != nil {
+		return 0, err
+	}
+
+	if len(results) > 0 {
+		return results[0].CategoryId, nil
+	}
+
+	return 0, nil
+}
+
 // CreateTransaction saves a new transaction to database
 func (s *TransactionService) CreateTransaction(c core.Context, transaction *models.Transaction, tagIds []int64, pictureIds []int64) error {
 	if transaction.Uid <= 0 {

@@ -45,4 +45,6 @@ var (
 	ErrCannotMoveTransactionFromOrToHiddenAccount                  = NewNormalError(NormalSubcategoryTransaction, 38, http.StatusBadRequest, "cannot move transaction from or to hidden account")
 	ErrCannotMoveTransactionFromOrToParentAccount                  = NewNormalError(NormalSubcategoryTransaction, 39, http.StatusBadRequest, "cannot move transaction from or to parent account")
 	ErrCannotMoveTransactionBetweenAccountsWithDifferentCurrencies = NewNormalError(NormalSubcategoryTransaction, 40, http.StatusBadRequest, "cannot move transaction between accounts with different currencies")
+	ErrQuickAddMissingAccountInfo                                   = NewNormalError(NormalSubcategoryTransaction, 41, http.StatusBadRequest, "quick add requires either accountId or accountName")
+	ErrQuickAddAccountNotFoundByName                                = NewNormalError(NormalSubcategoryTransaction, 42, http.StatusBadRequest, "no account found matching the given name")
 )
