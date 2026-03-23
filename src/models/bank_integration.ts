@@ -42,6 +42,7 @@ export interface BankConnectionTransactionItem {
     creditDebit: string;
     description: string;
     counterpartyName?: string;
+    status?: string;
 }
 
 export interface BankConnectionTransactionsResponse {

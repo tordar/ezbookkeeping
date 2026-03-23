@@ -1148,6 +1148,11 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
 	}
 
+	// Default time to now if not provided
+	if quickAddReq.Time <= 0 {
+		quickAddReq.Time = time.Now().Unix()
+	}
+
 	uid := c.GetCurrentUid()
 
 	// Resolve account
