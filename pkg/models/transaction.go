@@ -201,7 +201,7 @@ type TransactionImportRequest struct {
 // TransactionQuickAddRequest represents all parameters of quick add transaction request
 type TransactionQuickAddRequest struct {
 	Merchant    string                         `json:"merchant" binding:"required,max=255"`
-	Amount      float64                        `json:"amount" binding:"required"`
+	Amount      string                         `json:"amount" binding:"required"`
 	Time        int64                          `json:"time"`
 	UtcOffset   int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	AccountId   int64                          `json:"accountId,string"`
