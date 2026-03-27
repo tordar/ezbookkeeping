@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -8,6 +9,23 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
+
+// FlexibleAmountString accepts either a JSON string or number for amount fields
+type FlexibleAmountString string
+
+func (f *FlexibleAmountString) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		*f = FlexibleAmountString(s)
+		return nil
+	}
+	// It's a number — store as string
+	*f = FlexibleAmountString(string(data))
+	return nil
+}
 
 const MaximumTagsCountOfTransaction = 10
 const MaximumPicturesCountOfTransaction = 10
@@ -201,7 +219,7 @@ type TransactionImportRequest struct {
 // TransactionQuickAddRequest represents all parameters of quick add transaction request
 type TransactionQuickAddRequest struct {
 	Merchant    string                         `json:"merchant" binding:"required,max=255"`
-	Amount      string                         `json:"amount" binding:"required"`
+	Amount      FlexibleAmountString           `json:"amount" binding:"required"`
 	Time        int64                          `json:"time"`
 	UtcOffset   int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	AccountId   int64                          `json:"accountId,string"`

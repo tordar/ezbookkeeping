@@ -1184,7 +1184,7 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 	}
 
 	// Parse amount string: strip currency symbols/letters, handle comma decimals
-	amountStr := strings.TrimSpace(quickAddReq.Amount)
+	amountStr := strings.TrimSpace(string(quickAddReq.Amount))
 	// Remove any non-digit, non-dot, non-comma, non-minus characters (e.g. "kr", "$", "€")
 	cleanAmount := strings.Map(func(r rune) rune {
 		if (r >= '0' && r <= '9') || r == '.' || r == ',' || r == '-' {
@@ -1202,8 +1202,8 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 	}
 	parsedAmount, parseErr := strconv.ParseFloat(cleanAmount, 64)
 	if parseErr != nil || parsedAmount <= 0 {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\" (cleaned: \"%s\")", quickAddReq.Amount, cleanAmount)
-		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", quickAddReq.Amount))
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\" (cleaned: \"%s\")", string(quickAddReq.Amount), cleanAmount)
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", string(quickAddReq.Amount)))
 	}
 	amountCents := int64(math.Round(parsedAmount * 100))
 
