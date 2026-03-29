@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,19 @@ func (f *FlexibleAmountString) UnmarshalJSON(data []byte) error {
 	}
 	// It's a number — store as string
 	*f = FlexibleAmountString(string(data))
+	return nil
+}
+
+// FlexibleInt16 accepts either a JSON string or number and parses as int16
+type FlexibleInt16 int16
+
+func (f *FlexibleInt16) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), "\"")
+	n, err := strconv.ParseInt(s, 10, 16)
+	if err != nil {
+		return fmt.Errorf("cannot parse %q as int16: %w", s, err)
+	}
+	*f = FlexibleInt16(n)
 	return nil
 }
 
@@ -221,7 +235,7 @@ type TransactionQuickAddRequest struct {
 	Merchant    string                         `json:"merchant" binding:"required,max=255"`
 	Amount      FlexibleAmountString           `json:"amount" binding:"required"`
 	Time        int64                          `json:"time"`
-	UtcOffset   int16                          `json:"utcOffset" binding:"min=-720,max=840"`
+	UtcOffset   FlexibleInt16                   `json:"utcOffset" binding:"min=-720,max=840"`
 	AccountId   int64                          `json:"accountId,string"`
 	AccountName string                         `json:"accountName"`
 	GeoLocation *TransactionGeoLocationRequest `json:"geoLocation" binding:"omitempty"`

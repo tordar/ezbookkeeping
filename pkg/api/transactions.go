@@ -1200,7 +1200,7 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		Type:            models.TRANSACTION_TYPE_EXPENSE,
 		CategoryId:      categoryId,
 		Time:            quickAddReq.Time,
-		UtcOffset:       quickAddReq.UtcOffset,
+		UtcOffset:       int16(quickAddReq.UtcOffset),
 		SourceAccountId: accountId,
 		SourceAmount:    amountCents,
 		Comment:         quickAddReq.Merchant,
