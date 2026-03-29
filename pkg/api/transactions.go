@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1149,6 +1150,8 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
 	}
 
+	log.Infof(c, "[transactions.TransactionQuickAddHandler] merchant=%q amount=%q rawText=%q accountName=%q", quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.RawText, quickAddReq.AccountName)
+
 	// Default time to now if not provided
 	if quickAddReq.Time <= 0 {
 		quickAddReq.Time = time.Now().Unix()
@@ -1185,24 +1188,19 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 
 	// Parse amount string: strip currency symbols/letters, handle comma decimals
 	amountStr := strings.TrimSpace(string(quickAddReq.Amount))
-	// Remove any non-digit, non-dot, non-comma, non-minus characters (e.g. "kr", "$", "€")
-	cleanAmount := strings.Map(func(r rune) rune {
-		if (r >= '0' && r <= '9') || r == '.' || r == ',' || r == '-' {
-			return r
+	parsedAmount := parseAmountString(amountStr)
+
+	// If amount is invalid and rawText is provided, try to extract amount from notification text
+	if parsedAmount <= 0 && quickAddReq.RawText != "" {
+		rawAmount := extractAmountFromRawText(quickAddReq.RawText)
+		if rawAmount > 0 {
+			log.Infof(c, "[transactions.TransactionQuickAddHandler] extracted amount %.2f from rawText", rawAmount)
+			parsedAmount = rawAmount
 		}
-		return -1
-	}, amountStr)
-	// Handle comma as decimal separator: if there's a comma but no dot, replace comma with dot
-	// If both exist (e.g. "1.000,50"), remove dots and replace comma with dot
-	if strings.Contains(cleanAmount, ",") {
-		if strings.Contains(cleanAmount, ".") {
-			cleanAmount = strings.ReplaceAll(cleanAmount, ".", "")
-		}
-		cleanAmount = strings.Replace(cleanAmount, ",", ".", 1)
 	}
-	parsedAmount, parseErr := strconv.ParseFloat(cleanAmount, 64)
-	if parseErr != nil || parsedAmount <= 0 {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\" (cleaned: \"%s\")", string(quickAddReq.Amount), cleanAmount)
+
+	if parsedAmount <= 0 {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\" (rawText: \"%s\")", string(quickAddReq.Amount), quickAddReq.RawText)
 		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", string(quickAddReq.Amount)))
 	}
 	amountCents := int64(math.Round(parsedAmount * 100))
@@ -1269,6 +1267,48 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		TransactionInfoResponse: transactionResp,
 		CategoryName:            categoryName,
 	}, nil
+}
+
+// parseAmountString cleans a raw amount string (strips currency symbols, handles comma decimals)
+// and returns the parsed float value, or 0 if parsing fails.
+func parseAmountString(amountStr string) float64 {
+	cleanAmount := strings.Map(func(r rune) rune {
+		if (r >= '0' && r <= '9') || r == '.' || r == ',' || r == '-' {
+			return r
+		}
+		return -1
+	}, amountStr)
+
+	if strings.Contains(cleanAmount, ",") {
+		if strings.Contains(cleanAmount, ".") {
+			cleanAmount = strings.ReplaceAll(cleanAmount, ".", "")
+		}
+		cleanAmount = strings.Replace(cleanAmount, ",", ".", 1)
+	}
+
+	parsed, err := strconv.ParseFloat(cleanAmount, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
+}
+
+// extractAmountFromRawText tries to find a currency amount in raw notification text.
+// It looks for the last occurrence of a number with decimal separator (e.g. "219,72" or "219.72"),
+// optionally preceded by a currency symbol/code like "kr", "$", "€".
+var amountInTextRegex = regexp.MustCompile(`(?i)(?:kr|nok|sek|dkk|eur|usd|gbp|[$€£])\s*(\d[\d.]*,\d{2}|\d[\d,]*\.\d{2})`)
+var trailingAmountRegex = regexp.MustCompile(`(\d[\d.]*,\d{2}|\d[\d,]*\.\d{2})\s*$`)
+
+func extractAmountFromRawText(rawText string) float64 {
+	// First try: look for amount preceded by currency indicator
+	if matches := amountInTextRegex.FindStringSubmatch(rawText); len(matches) > 1 {
+		return parseAmountString(matches[1])
+	}
+	// Second try: look for a decimal number at the end of the text
+	if matches := trailingAmountRegex.FindStringSubmatch(rawText); len(matches) > 1 {
+		return parseAmountString(matches[1])
+	}
+	return 0
 }
 
 // TransactionModifyHandler saves an existed transaction by request parameters for current user
