@@ -154,7 +154,7 @@ function renderForm() {
       </div>
       <div>
         <label>Description</label>
-        <input type="text" id="merchant" placeholder="Store name or description" autocomplete="off">
+        <input type="text" id="merchant" placeholder="Store name or description" autocomplete="off" onblur="guessCategory()">
       </div>
       <div class="row">
         <div>
@@ -176,6 +176,19 @@ function renderForm() {
   }
 
   document.getElementById('amount').focus();
+}
+
+async function guessCategory() {
+  const merchant = document.getElementById('merchant').value.trim();
+  const catSelect = document.getElementById('category');
+  if (!merchant || catSelect.value !== '') return;
+
+  try {
+    const result = await api('GET', '/transactions/quick_add/guess_category.json?merchant=' + encodeURIComponent(merchant));
+    if (result.categoryId && result.categoryId !== '0') {
+      catSelect.value = result.categoryId;
+    }
+  } catch (e) { /* silent */ }
 }
 
 async function submit() {

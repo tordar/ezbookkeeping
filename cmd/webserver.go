@@ -412,6 +412,7 @@ func startWebServer(c *core.CliContext) error {
 			apiV1Route.GET("/transactions/get.json", bindApi(api.Transactions.TransactionGetHandler))
 			apiV1Route.POST("/transactions/add.json", bindApi(api.Transactions.TransactionCreateHandler))
 			apiV1Route.POST("/transactions/quick_add.json", bindApi(api.Transactions.TransactionQuickAddHandler))
+			apiV1Route.GET("/transactions/quick_add/guess_category.json", bindApi(api.Transactions.TransactionQuickAddGuessCategoryHandler))
 			apiV1Route.POST("/transactions/modify.json", bindApi(api.Transactions.TransactionModifyHandler))
 			apiV1Route.POST("/transactions/move/all.json", bindApi(api.Transactions.TransactionMoveAllBetweenAccountsHandler))
 			apiV1Route.POST("/transactions/delete.json", bindApi(api.Transactions.TransactionDeleteHandler))

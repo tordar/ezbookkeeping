@@ -1139,6 +1139,29 @@ func (a *TransactionsApi) TransactionCreateHandler(c *core.WebContext) (any, *er
 	return transactionResp, nil
 }
 
+// TransactionQuickAddGuessCategoryHandler returns the guessed category for a merchant name
+func (a *TransactionsApi) TransactionQuickAddGuessCategoryHandler(c *core.WebContext) (any, *errs.Error) {
+	merchant := c.Query("merchant")
+	if merchant == "" {
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("merchant is required"))
+	}
+
+	uid := c.GetCurrentUid()
+	categoryId, err := a.transactions.GetMostFrequentCategoryByComment(c, uid, merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+
+	if err != nil || categoryId == 0 {
+		return map[string]any{"categoryId": "0", "categoryName": ""}, nil
+	}
+
+	categoryName := ""
+	category, err := a.transactionCategories.GetCategoryByCategoryId(c, uid, categoryId)
+	if err == nil && category != nil {
+		categoryName = category.Name
+	}
+
+	return map[string]any{"categoryId": fmt.Sprintf("%d", categoryId), "categoryName": categoryName}, nil
+}
+
 // TransactionQuickAddHandler creates a new expense transaction with automatic category guessing
 func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *errs.Error) {
 	var quickAddReq models.TransactionQuickAddRequest
