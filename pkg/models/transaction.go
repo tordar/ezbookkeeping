@@ -234,8 +234,9 @@ type TransactionImportRequest struct {
 type TransactionQuickAddRequest struct {
 	Merchant    string                         `json:"merchant" binding:"required,max=255"`
 	Amount      FlexibleAmountString           `json:"amount" binding:"required"`
+	CategoryId  int64                          `json:"categoryId,string"`
 	Time        int64                          `json:"time"`
-	UtcOffset   FlexibleInt16                   `json:"utcOffset" binding:"min=-720,max=840"`
+	UtcOffset   FlexibleInt16                  `json:"utcOffset" binding:"min=-720,max=840"`
 	AccountId   int64                          `json:"accountId,string"`
 	AccountName string                         `json:"accountName"`
 	GeoLocation *TransactionGeoLocationRequest `json:"geoLocation" binding:"omitempty"`

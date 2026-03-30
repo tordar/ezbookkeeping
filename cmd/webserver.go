@@ -175,6 +175,8 @@ func startWebServer(c *core.CliContext) error {
 		router.StaticFile("/desktop/"+workboxFileNames[i], filepath.Join(config.StaticRootPath, workboxFileNames[i]))
 	}
 
+	router.StaticFile("/quickadd", filepath.Join(config.StaticRootPath, "quickadd.html"))
+
 	if config.AvatarProvider == core.USER_AVATAR_PROVIDER_INTERNAL {
 		avatarRoute := router.Group("/avatar")
 		avatarRoute.Use(bindMiddleware(middlewares.JWTAuthorizationByQueryString(config)))

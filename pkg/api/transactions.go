@@ -1176,13 +1176,18 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.ErrQuickAddMissingAccountInfo
 	}
 
-	// Guess category from transaction history
-	categoryId, err := a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+	// Use explicit category if provided, otherwise guess from transaction history
+	var categoryId int64
+	if quickAddReq.CategoryId > 0 {
+		categoryId = quickAddReq.CategoryId
+	} else {
+		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
 
-	if err != nil {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
-		// Non-fatal: proceed with categoryId = 0
-		categoryId = 0
+		if err != nil {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
+			// Non-fatal: proceed with categoryId = 0
+			categoryId = 0
+		}
 	}
 
 	// Parse amount string: strip currency symbols/letters, handle comma decimals
