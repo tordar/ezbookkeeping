@@ -151,7 +151,7 @@ dist/
 # Binary and build files
 ezbookkeeping
 !**/ezbookkeeping/
-package/
+/package/
 
 # Environment variable files
 .env
@@ -165,6 +165,6 @@ conf/*.local.ini
 *.pem
 
 # Other directories
-data/
-storage/
-log/
+/data/
+/storage/
+/log/

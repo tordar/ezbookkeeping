@@ -27,7 +27,7 @@
                           :key="item.index"
                           :style="`top: ${virtualDataItems.topPosition}px`"
                           :virtual-list-index="item.index"
-                          :title="item.displayDate"
+                          :title="item.alternativeDisplayDate || item.displayDate"
                           :after="formatAmountToLocalizedNumeralsWithCurrency(item.closingBalance, account.currency)"
                           v-for="item in virtualDataItems.items"
             >
@@ -96,7 +96,10 @@ const allVirtualListItems = computed<MobileAccountBalanceTrendsChartItem[]>(() =
 
         const finalDataItem: MobileAccountBalanceTrendsChartItem = {
             index: index,
+            dateRangeKey: dataItem.dateRangeKey,
+            lastYearDateRangeKey: dataItem.lastYearDateRangeKey,
             displayDate: dataItem.displayDate,
+            alternativeDisplayDate: dataItem.alternativeDisplayDate,
             openingBalance: dataItem.openingBalance,
             closingBalance: dataItem.closingBalance,
             medianBalance: dataItem.medianBalance,
