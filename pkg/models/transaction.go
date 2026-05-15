@@ -1,13 +1,45 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
+
+// FlexibleAmountString accepts either a JSON string or number for amount fields
+type FlexibleAmountString string
+
+func (f *FlexibleAmountString) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		*f = FlexibleAmountString(s)
+		return nil
+	}
+	// It's a number — store as string
+	*f = FlexibleAmountString(string(data))
+	return nil
+}
+
+// FlexibleInt16 accepts either a JSON string or number and parses as int16
+type FlexibleInt16 int16
+
+func (f *FlexibleInt16) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), "\"")
+	n, err := strconv.ParseInt(s, 10, 16)
+	if err != nil {
+		return fmt.Errorf("cannot parse %q as int16: %w", s, err)
+	}
+	*f = FlexibleInt16(n)
+	return nil
+}
 
 const MaximumTagsCountOfTransaction = 10
 const MaximumPicturesCountOfTransaction = 10
@@ -201,9 +233,10 @@ type TransactionImportRequest struct {
 // TransactionQuickAddRequest represents all parameters of quick add transaction request
 type TransactionQuickAddRequest struct {
 	Merchant    string                         `json:"merchant" binding:"required,max=255"`
-	Amount      float64                        `json:"amount" binding:"required"`
+	Amount      FlexibleAmountString           `json:"amount" binding:"required"`
+	CategoryId  int64                          `json:"categoryId,string"`
 	Time        int64                          `json:"time"`
-	UtcOffset   int16                          `json:"utcOffset" binding:"min=-720,max=840"`
+	UtcOffset   FlexibleInt16                  `json:"utcOffset" binding:"min=-720,max=840"`
 	AccountId   int64                          `json:"accountId,string"`
 	AccountName string                         `json:"accountName"`
 	GeoLocation *TransactionGeoLocationRequest `json:"geoLocation" binding:"omitempty"`

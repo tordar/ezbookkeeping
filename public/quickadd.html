@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quick Add">
+<link rel="apple-touch-icon" href="/touchicon.png">
+<title>Quick Add</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0d1117; color: #e6edf3;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+}
+h1 { font-size: 20px; font-weight: 600; padding: 16px 0 12px; text-align: center; }
+.form { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+label { font-size: 13px; color: #8b949e; margin-bottom: 2px; display: block; }
+input, select {
+  width: 100%; padding: 12px; font-size: 16px;
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  color: #e6edf3; -webkit-appearance: none; appearance: none;
+}
+input:focus, select:focus { outline: none; border-color: #58a6ff; }
+input[type="number"] { font-size: 32px; padding: 16px; text-align: center; font-weight: 600; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+button {
+  width: 100%; padding: 14px; font-size: 17px; font-weight: 600;
+  background: #238636; color: #fff; border: none; border-radius: 8px;
+  cursor: pointer; margin-top: auto; margin-bottom: 16px;
+}
+button:active { background: #2ea043; }
+button:disabled { background: #21262d; color: #484f58; }
+.toast {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  padding: 16px 24px; border-radius: 12px; font-size: 15px; font-weight: 500;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none; text-align: center;
+  max-width: 280px;
+}
+.toast.success { background: #238636; color: #fff; }
+.toast.error { background: #da3633; color: #fff; }
+.toast.visible { opacity: 1; }
+.login { display: flex; flex-direction: column; gap: 12px; padding-top: 40px; }
+.login p { color: #8b949e; font-size: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+const API_BASE = window.location.origin + '/api/v1';
+const TOKEN_KEY = 'ebk_user_token';
+
+let accounts = [];
+let categories = [];
+let token = localStorage.getItem(TOKEN_KEY);
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+async function api(method, path, body) {
+  const t = getToken();
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (t) opts.headers['Authorization'] = 'Bearer ' + t;
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API_BASE + path, opts);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.errorMessage || 'API error ' + json.errorCode);
+  return json.result;
+}
+
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type + ' visible';
+  setTimeout(() => el.className = 'toast', 2000);
+}
+
+function flattenAccounts(accs, prefix) {
+  let flat = [];
+  for (const a of accs) {
+    if (a.hidden) continue;
+    const name = prefix ? prefix + ' / ' + a.name : a.name;
+    flat.push({ id: a.id, name });
+    if (a.subAccounts) flat = flat.concat(flattenAccounts(a.subAccounts, name));
+  }
+  return flat;
+}
+
+function flattenCategories(cats, prefix) {
+  let flat = [];
+  for (const c of cats) {
+    if (c.hidden) continue;
+    const name = prefix ? prefix + ' / ' + c.name : c.name;
+    flat.push({ id: c.id, name });
+    if (c.subCategories) flat = flat.concat(flattenCategories(c.subCategories, name));
+  }
+  return flat;
+}
+
+async function loadData() {
+  try {
+    const [accsRaw, catsRaw] = await Promise.all([
+      api('GET', '/accounts/list.json?visible_only=true'),
+      api('GET', '/transaction/categories/list.json?type=2'),
+    ]);
+    accounts = flattenAccounts(accsRaw || [], '');
+    const expenseCats = catsRaw && catsRaw['2'] ? catsRaw['2'] : [];
+    categories = flattenCategories(expenseCats, '');
+    renderForm();
+  } catch (e) {
+    if (e.message.includes('unauthorized') || e.message.includes('token') || e.message.includes('202')) {
+      renderLogin();
+    } else {
+      showToast(e.message, 'error');
+    }
+  }
+}
+
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <h1>Quick Add</h1>
+    <div class="login">
+      <p>Log in to ezbookkeeping first, then come back here.</p>
+      <a href="/" style="color:#58a6ff;text-align:center">Go to login</a>
+    </div>
+  `;
+}
+
+function renderForm() {
+  const accOpts = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const catOpts = `<option value="">Auto-detect</option>` +
+    categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+  const lastAccount = localStorage.getItem('quickadd_last_account') || '';
+
+  document.getElementById('app').innerHTML = `
+    <h1>Quick Add</h1>
+    <div class="form">
+      <div>
+        <label>Amount</label>
+        <input type="text" id="amount" inputmode="decimal" placeholder="0,00" autofocus>
+      </div>
+      <div>
+        <label>Description</label>
+        <input type="text" id="merchant" placeholder="Store name or description" autocomplete="off" onblur="guessCategory()">
+      </div>
+      <div class="row">
+        <div>
+          <label>Account</label>
+          <select id="account">${accOpts}</select>
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="category">${catOpts}</select>
+        </div>
+      </div>
+      <button id="submit" onclick="submit()">Add Expense</button>
+    </div>
+  `;
+
+  if (lastAccount) {
+    const sel = document.getElementById('account');
+    if (sel.querySelector(`option[value="${lastAccount}"]`)) sel.value = lastAccount;
+  }
+
+  document.getElementById('amount').focus();
+}
+
+async function guessCategory() {
+  const merchant = document.getElementById('merchant').value.trim();
+  const catSelect = document.getElementById('category');
+  if (!merchant || catSelect.value !== '') return;
+
+  try {
+    const result = await api('GET', '/transactions/quick_add/guess_category.json?merchant=' + encodeURIComponent(merchant));
+    if (result.categoryId && result.categoryId !== '0') {
+      catSelect.value = result.categoryId;
+    }
+  } catch (e) { /* silent */ }
+}
+
+async function submit() {
+  const btn = document.getElementById('submit');
+  const amount = document.getElementById('amount').value;
+  const merchant = document.getElementById('merchant').value.trim();
+  const accountId = document.getElementById('account').value;
+  const categoryId = document.getElementById('category').value;
+
+  if (!amount || parseFloat(amount) <= 0) { showToast('Enter an amount', 'error'); return; }
+  if (!merchant) { showToast('Enter a description', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  try {
+    const body = {
+      merchant,
+      amount: amount,
+      accountId: accountId,
+      utcOffset: -(new Date().getTimezoneOffset()),
+      time: Math.floor(Date.now() / 1000),
+    };
+    if (categoryId) body.categoryId = categoryId;
+
+    const result = await api('POST', '/transactions/quick_add.json', body);
+    const catName = result.categoryName ? ' (' + result.categoryName + ')' : '';
+    showToast('Added ' + merchant + catName, 'success');
+    localStorage.setItem('quickadd_last_account', accountId);
+
+    document.getElementById('amount').value = '';
+    document.getElementById('merchant').value = '';
+    document.getElementById('amount').focus();
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add Expense';
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'merchant') submit();
+});
+
+loadData();
+</script>
+</body>
+</html>

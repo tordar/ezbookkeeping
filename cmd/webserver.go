@@ -175,6 +175,8 @@ func startWebServer(c *core.CliContext) error {
 		router.StaticFile("/desktop/"+workboxFileNames[i], filepath.Join(config.StaticRootPath, workboxFileNames[i]))
 	}
 
+	router.StaticFile("/quickadd", filepath.Join(config.StaticRootPath, "quickadd.html"))
+
 	if config.AvatarProvider == core.USER_AVATAR_PROVIDER_INTERNAL {
 		avatarRoute := router.Group("/avatar")
 		avatarRoute.Use(bindMiddleware(middlewares.JWTAuthorizationByQueryString(config)))
@@ -411,6 +413,7 @@ func startWebServer(c *core.CliContext) error {
 			apiV1Route.GET("/transactions/get.json", bindApi(api.Transactions.TransactionGetHandler))
 			apiV1Route.POST("/transactions/add.json", bindApi(api.Transactions.TransactionCreateHandler))
 			apiV1Route.POST("/transactions/quick_add.json", bindApi(api.Transactions.TransactionQuickAddHandler))
+			apiV1Route.GET("/transactions/quick_add/guess_category.json", bindApi(api.Transactions.TransactionQuickAddGuessCategoryHandler))
 			apiV1Route.POST("/transactions/modify.json", bindApi(api.Transactions.TransactionModifyHandler))
 			apiV1Route.POST("/transactions/batch_update/category.json", bindApi(api.Transactions.TransactionBatchUpdateCategoriesHandler))
 			apiV1Route.POST("/transactions/batch_update/account.json", bindApi(api.Transactions.TransactionBatchUpdateAccountsHandler))

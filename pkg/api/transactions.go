@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1147,6 +1148,29 @@ func (a *TransactionsApi) TransactionCreateHandler(c *core.WebContext) (any, *er
 	return transactionResp, nil
 }
 
+// TransactionQuickAddGuessCategoryHandler returns the guessed category for a merchant name
+func (a *TransactionsApi) TransactionQuickAddGuessCategoryHandler(c *core.WebContext) (any, *errs.Error) {
+	merchant := c.Query("merchant")
+	if merchant == "" {
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("merchant is required"))
+	}
+
+	uid := c.GetCurrentUid()
+	categoryId, err := a.transactions.GetMostFrequentCategoryByComment(c, uid, merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+
+	if err != nil || categoryId == 0 {
+		return map[string]any{"categoryId": "0", "categoryName": ""}, nil
+	}
+
+	categoryName := ""
+	category, err := a.transactionCategories.GetCategoryByCategoryId(c, uid, categoryId)
+	if err == nil && category != nil {
+		categoryName = category.Name
+	}
+
+	return map[string]any{"categoryId": fmt.Sprintf("%d", categoryId), "categoryName": categoryName}, nil
+}
+
 // TransactionQuickAddHandler creates a new expense transaction with automatic category guessing
 func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *errs.Error) {
 	var quickAddReq models.TransactionQuickAddRequest
@@ -1156,6 +1180,8 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		log.Warnf(c, "[transactions.TransactionQuickAddHandler] parse request failed, because %s", err.Error())
 		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
 	}
+
+	log.Infof(c, "[transactions.TransactionQuickAddHandler] merchant=%q amount=%q accountName=%q", quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.AccountName)
 
 	// Default time to now if not provided
 	if quickAddReq.Time <= 0 {
@@ -1182,24 +1208,36 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.ErrQuickAddMissingAccountInfo
 	}
 
-	// Guess category from transaction history
-	categoryId, err := a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+	// Use explicit category if provided, otherwise guess from transaction history
+	var categoryId int64
+	if quickAddReq.CategoryId > 0 {
+		categoryId = quickAddReq.CategoryId
+	} else {
+		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
 
-	if err != nil {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
-		// Non-fatal: proceed with categoryId = 0
-		categoryId = 0
+		if err != nil {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
+			// Non-fatal: proceed with categoryId = 0
+			categoryId = 0
+		}
 	}
 
-	// Convert amount to cents
-	amountCents := int64(math.Round(quickAddReq.Amount * 100))
+	// Parse amount string: strip currency symbols/letters, handle comma decimals
+	amountStr := strings.TrimSpace(string(quickAddReq.Amount))
+	parsedAmount := parseAmountString(amountStr)
+
+	if parsedAmount <= 0 {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\"", string(quickAddReq.Amount))
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", string(quickAddReq.Amount)))
+	}
+	amountCents := int64(math.Round(parsedAmount * 100))
 
 	// Build the transaction create request and reuse existing logic
 	transactionCreateReq := &models.TransactionCreateRequest{
 		Type:            models.TRANSACTION_TYPE_EXPENSE,
 		CategoryId:      categoryId,
 		Time:            quickAddReq.Time,
-		UtcOffset:       quickAddReq.UtcOffset,
+		UtcOffset:       int16(quickAddReq.UtcOffset),
 		SourceAccountId: accountId,
 		SourceAmount:    amountCents,
 		Comment:         quickAddReq.Merchant,
@@ -1267,6 +1305,30 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		TransactionInfoResponse: transactionResp,
 		CategoryName:            categoryName,
 	}, nil
+}
+
+// parseAmountString cleans a raw amount string (strips currency symbols, handles comma decimals)
+// and returns the parsed float value, or 0 if parsing fails.
+func parseAmountString(amountStr string) float64 {
+	cleanAmount := strings.Map(func(r rune) rune {
+		if (r >= '0' && r <= '9') || r == '.' || r == ',' || r == '-' {
+			return r
+		}
+		return -1
+	}, amountStr)
+
+	if strings.Contains(cleanAmount, ",") {
+		if strings.Contains(cleanAmount, ".") {
+			cleanAmount = strings.ReplaceAll(cleanAmount, ".", "")
+		}
+		cleanAmount = strings.Replace(cleanAmount, ",", ".", 1)
+	}
+
+	parsed, err := strconv.ParseFloat(cleanAmount, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 // TransactionModifyHandler saves an existed transaction by request parameters for current user
