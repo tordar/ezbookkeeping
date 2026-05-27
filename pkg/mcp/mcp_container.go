@@ -71,6 +71,8 @@ func InitializeMCPHandlers(config *settings.Config) error {
 	}
 
 	registerMCPTextContentToolHandler(container, MCPAddTransactionToolHandler)
+	registerMCPTextContentToolHandler(container, MCPModifyTransactionToolHandler)
+	registerMCPTextContentToolHandler(container, MCPDeleteTransactionToolHandler)
 	registerMCPTextContentToolHandler(container, MCPQueryTransactionsToolHandler)
 	registerMCPTextContentToolHandler(container, MCPQueryAllAccountsToolHandler)
 	registerMCPTextContentToolHandler(container, MCPQueryAllAccountsBalanceToolHandler)
