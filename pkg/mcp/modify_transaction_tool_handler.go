@@ -203,7 +203,7 @@ func (h *mcpModifyTransactionToolHandler) Handle(c *core.WebContext, callToolReq
 	currentTagIds := allTransactionTagIds[transaction.TransactionId]
 	currentTagIdsCount := len(currentTagIds)
 
-	err = services.GetTransactionService().ModifyTransaction(c, &newTransaction, currentTagIdsCount, nil, nil, nil, nil)
+	err = services.GetTransactionService().ModifyTransaction(c, &newTransaction, false, currentTagIdsCount, nil, nil, nil, nil)
 
 	if err != nil {
 		log.Errorf(c, "[modify_transaction.Handle] failed to modify transaction \"id:%d\" for user \"uid:%d\", because %s", transactionId, uid, err.Error())

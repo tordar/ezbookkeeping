@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
 	"github.com/mayswind/ezbookkeeping/pkg/utils"
 )
@@ -197,8 +198,8 @@ type TransactionCreateRequest struct {
 	UtcOffset            int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	SourceAccountId      int64                          `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId int64                          `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-9999999999999,max=9999999999999"`
+	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-9999999999999,max=9999999999999"`
 	HideAmount           bool                           `json:"hideAmount"`
 	TagIds               []string                       `json:"tagIds"`
 	PictureIds           []string                       `json:"pictureIds"`
@@ -210,13 +211,14 @@ type TransactionCreateRequest struct {
 // TransactionModifyRequest represents all parameters of transaction modification request
 type TransactionModifyRequest struct {
 	Id                   int64                          `json:"id,string" binding:"required,min=1"`
+	Type                 TransactionType                `json:"type" binding:"required"`
 	CategoryId           int64                          `json:"categoryId,string"`
 	Time                 int64                          `json:"time" binding:"required,min=1"`
 	UtcOffset            int16                          `json:"utcOffset" binding:"min=-720,max=840"`
 	SourceAccountId      int64                          `json:"sourceAccountId,string" binding:"required,min=1"`
 	DestinationAccountId int64                          `json:"destinationAccountId,string" binding:"min=0"`
-	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-99999999999,max=99999999999"`
-	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-99999999999,max=99999999999"`
+	SourceAmount         int64                          `json:"sourceAmount" binding:"min=-9999999999999,max=9999999999999"`
+	DestinationAmount    int64                          `json:"destinationAmount" binding:"min=-9999999999999,max=9999999999999"`
 	HideAmount           bool                           `json:"hideAmount"`
 	TagIds               []string                       `json:"tagIds"`
 	PictureIds           []string                       `json:"pictureIds"`
@@ -266,6 +268,7 @@ type TransactionCountRequest struct {
 	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
 	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
 	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
 	MustHavePictures bool            `form:"must_have_pictures"`
 	MaxTime          int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
 	MinTime          int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
@@ -279,6 +282,7 @@ type TransactionListByMaxTimeRequest struct {
 	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
 	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
 	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
 	MustHavePictures bool            `form:"must_have_pictures"`
 	MaxTime          int64           `form:"max_time" binding:"min=0"` // Transaction time sequence id
 	MinTime          int64           `form:"min_time" binding:"min=0"` // Transaction time sequence id
@@ -301,6 +305,7 @@ type TransactionListInMonthByPageRequest struct {
 	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
 	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
 	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
 	MustHavePictures bool            `form:"must_have_pictures"`
 	WithPictures     bool            `form:"with_pictures"`
 	TrimAccount      bool            `form:"trim_account"`
@@ -316,6 +321,7 @@ type TransactionAllListRequest struct {
 	TagFilter        string          `form:"tag_filter" binding:"validTagFilter"`
 	AmountFilter     string          `form:"amount_filter" binding:"validAmountFilter"`
 	Keyword          string          `form:"keyword"`
+	MatchMode        core.MatchMode  `form:"match_mode" binding:"min=0,max=1"`
 	MustHavePictures bool            `form:"must_have_pictures"`
 	StartTime        int64           `form:"start_time" binding:"min=0"`
 	EndTime          int64           `form:"end_time" binding:"min=0"`
@@ -334,19 +340,21 @@ type TransactionReconciliationStatementRequest struct {
 
 // TransactionStatisticRequest represents all parameters of transaction statistic request
 type TransactionStatisticRequest struct {
-	StartTime              int64  `form:"start_time" binding:"min=0"`
-	EndTime                int64  `form:"end_time" binding:"min=0"`
-	TagFilter              string `form:"tag_filter" binding:"validTagFilter"`
-	Keyword                string `form:"keyword"`
-	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
+	StartTime              int64          `form:"start_time" binding:"min=0"`
+	EndTime                int64          `form:"end_time" binding:"min=0"`
+	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
+	Keyword                string         `form:"keyword"`
+	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
+	UseTransactionTimezone bool           `form:"use_transaction_timezone"`
 }
 
 // TransactionStatisticTrendsRequest represents all parameters of transaction statistic trends request
 type TransactionStatisticTrendsRequest struct {
 	YearMonthRangeRequest
-	TagFilter              string `form:"tag_filter" binding:"validTagFilter"`
-	Keyword                string `form:"keyword"`
-	UseTransactionTimezone bool   `form:"use_transaction_timezone"`
+	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
+	Keyword                string         `form:"keyword"`
+	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
+	UseTransactionTimezone bool           `form:"use_transaction_timezone"`
 }
 
 // TransactionStatisticAssetTrendsRequest represents all parameters of transaction statistic asset trends request

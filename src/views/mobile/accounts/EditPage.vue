@@ -9,12 +9,12 @@
             </f7-nav-right>
         </f7-navbar>
 
-        <f7-list strong inset dividers class="margin-vertical skeleton-text" v-if="loading">
+        <f7-list strong inset dividers class="margin-vertical-half skeleton-text" v-if="loading">
             <f7-list-item class="list-item-with-header-and-title" header="Account Category" title="Category"></f7-list-item>
             <f7-list-item class="list-item-with-header-and-title" header="Account Type" title="Account Type"></f7-list-item>
         </f7-list>
 
-        <f7-list form strong inset dividers class="margin-vertical" v-else-if="!loading">
+        <f7-list form strong inset dividers class="margin-vertical-half" v-else-if="!loading">
             <f7-list-item
                 link="#" no-chevron
                 class="list-item-with-header-and-title"
@@ -267,7 +267,9 @@
             </f7-list-item>
 
             <f7-list-item :title="tt('Visible')" v-if="editAccountId">
-                <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                <template #after>
+                    <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                </template>
             </f7-list-item>
 
             <f7-list-input
@@ -361,7 +363,9 @@
             </f7-list-item>
 
             <f7-list-item :title="tt('Visible')" v-if="editAccountId">
-                <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                <template #after>
+                    <f7-toggle :checked="account.visible" @toggle:change="account.visible = $event"></f7-toggle>
+                </template>
             </f7-list-item>
 
             <f7-list-input
@@ -537,7 +541,9 @@
                 </f7-list-item>
 
                 <f7-list-item :title="tt('Visible')" v-if="editAccountId && !isNewAccount(subAccount)">
-                    <f7-toggle :checked="subAccount.visible" @toggle:change="subAccount.visible = $event"></f7-toggle>
+                    <template #after>
+                        <f7-toggle :checked="subAccount.visible" @toggle:change="subAccount.visible = $event"></f7-toggle>
+                    </template>
                 </f7-list-item>
 
                 <f7-list-input
