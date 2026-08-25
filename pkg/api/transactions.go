@@ -1171,7 +1171,7 @@ func (a *TransactionsApi) TransactionQuickAddGuessCategoryHandler(c *core.WebCon
 	return map[string]any{"categoryId": fmt.Sprintf("%d", categoryId), "categoryName": categoryName}, nil
 }
 
-// TransactionQuickAddHandler creates a new expense transaction with automatic category guessing
+// TransactionQuickAddHandler creates a new expense or income transaction with automatic category guessing
 func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *errs.Error) {
 	var quickAddReq models.TransactionQuickAddRequest
 	err := c.ShouldBindJSON(&quickAddReq)
@@ -1181,7 +1181,17 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.NewIncompleteOrIncorrectSubmissionError(err)
 	}
 
-	log.Infof(c, "[transactions.TransactionQuickAddHandler] merchant=%q amount=%q accountName=%q", quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.AccountName)
+	log.Infof(c, "[transactions.TransactionQuickAddHandler] merchant=%q amount=%q accountName=%q type=%q", quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.AccountName, quickAddReq.Type)
+
+	transactionType := models.TRANSACTION_TYPE_EXPENSE
+	transactionDbType := models.TRANSACTION_DB_TYPE_EXPENSE
+	categoryType := models.CATEGORY_TYPE_EXPENSE
+
+	if quickAddReq.Type == "income" {
+		transactionType = models.TRANSACTION_TYPE_INCOME
+		transactionDbType = models.TRANSACTION_DB_TYPE_INCOME
+		categoryType = models.CATEGORY_TYPE_INCOME
+	}
 
 	// Default time to now if not provided
 	if quickAddReq.Time <= 0 {
@@ -1208,12 +1218,32 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		return nil, errs.ErrQuickAddMissingAccountInfo
 	}
 
-	// Use explicit category if provided, otherwise guess from transaction history
+	// Use explicit category if provided, otherwise resolve by name, otherwise guess from transaction history
 	var categoryId int64
 	if quickAddReq.CategoryId > 0 {
 		categoryId = quickAddReq.CategoryId
+	} else if quickAddReq.CategoryName != "" {
+		categories, err := a.transactionCategories.GetAllCategoriesByUid(c, uid, categoryType, -1)
+
+		if err != nil {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to get categories for user \"uid:%d\", because %s", uid, err.Error())
+			return nil, errs.Or(err, errs.ErrOperationFailed)
+		}
+
+		for _, category := range categories {
+			// only sub-categories can be assigned to transactions
+			if category.ParentCategoryId != 0 && strings.EqualFold(strings.TrimSpace(category.Name), strings.TrimSpace(quickAddReq.CategoryName)) {
+				categoryId = category.CategoryId
+				break
+			}
+		}
+
+		if categoryId == 0 {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] category not found by name \"%s\" for user \"uid:%d\"", quickAddReq.CategoryName, uid)
+			return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("category not found: %s", quickAddReq.CategoryName))
+		}
 	} else {
-		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, models.TRANSACTION_DB_TYPE_EXPENSE)
+		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, transactionDbType)
 
 		if err != nil {
 			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
@@ -1234,7 +1264,7 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 
 	// Build the transaction create request and reuse existing logic
 	transactionCreateReq := &models.TransactionCreateRequest{
-		Type:            models.TRANSACTION_TYPE_EXPENSE,
+		Type:            transactionType,
 		CategoryId:      categoryId,
 		Time:            quickAddReq.Time,
 		UtcOffset:       int16(quickAddReq.UtcOffset),
