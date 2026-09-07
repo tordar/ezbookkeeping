@@ -7,6 +7,7 @@ import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionsStore } from '@/stores/transaction.ts';
 import { useStatisticsStore } from '@/stores/statistics.ts';
 import { useOverviewStore } from '@/stores/overview.ts';
+import { useCategoryAveragesStore } from '@/stores/categoryAverages.ts';
 
 import { keys, keysIfValueEquals, values } from '@/core/base.ts';
 import { CategoryType } from '@/core/category.ts';
@@ -31,6 +32,7 @@ export function useCategoryFilterSettingPageBase(type?: CategoryFilterType, allo
     const transactionsStore = useTransactionsStore();
     const statisticsStore = useStatisticsStore();
     const overviewStore = useOverviewStore();
+    const categoryAveragesStore = useCategoryAveragesStore();
 
     const allowCategoryTypes: Record<string, boolean> | undefined = allowCategoryTypesStr ? arrayItemToObjectField(allowCategoryTypesStr.split(','), true) : undefined;
 
@@ -196,6 +198,7 @@ export function useCategoryFilterSettingPageBase(type?: CategoryFilterType, allo
         } else if (type === 'homePageOverview') {
             settingsStore.setOverviewTransactionCategoryFilterInHomePage(filteredCategoryIds);
             overviewStore.updateTransactionOverviewInvalidState(true);
+            categoryAveragesStore.updateCategoryAveragesInvalidState(true);
         } else if (type === 'transactionListCurrent') {
             changed = transactionsStore.updateTransactionListFilter({
                 categoryIds: isAllSelected ? '' : finalCategoryIds

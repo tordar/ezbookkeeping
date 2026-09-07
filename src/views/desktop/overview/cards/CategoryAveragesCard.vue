@@ -29,8 +29,9 @@
             <template v-else>
                 <div v-for="row in rows" :key="row.categoryId">
                     <div class="d-flex align-center category-averages-row"
-                         :class="{ 'category-averages-row-expandable': row.subRows.length }"
+                         :class="{ 'category-averages-row-expandable': row.subRows.length, 'category-averages-row-excluded': row.excluded }"
                          @click="toggleRow(row)">
+                        <v-tooltip activator="parent" location="top" v-if="row.excluded">{{ tt('Filtered out of the totals') }}</v-tooltip>
                         <span class="category-averages-name d-flex align-center">
                             <v-icon class="category-averages-chevron" size="16"
                                     :icon="expandedCategoryIds[row.categoryId] ? mdiChevronDown : mdiChevronRight"
@@ -47,6 +48,7 @@
                     </div>
 
                     <div class="d-flex align-center category-averages-row category-averages-subrow"
+                         :class="{ 'category-averages-row-excluded': subRow.excluded }"
                          v-for="subRow in (expandedCategoryIds[row.categoryId] ? row.subRows : [])" :key="subRow.categoryId">
                         <span class="category-averages-name d-flex align-center">
                             <span class="category-averages-chevron"></span>
@@ -143,6 +145,10 @@ function displayAmount(amount: number): string {
 }
 
 function getPacePercent(row: CategoryAveragesRow | CategoryAveragesTotal): number | null {
+    if ('excluded' in row && row.excluded) {
+        return null;
+    }
+
     if (row.averageToDate <= 0) {
         return null;
     }
@@ -229,5 +235,9 @@ function toggleRow(row: CategoryAveragesRow): void {
 
 .category-averages-card .category-averages-subrow {
     font-size: 0.875rem;
+}
+
+.category-averages-card .category-averages-row-excluded {
+    opacity: 0.45;
 }
 </style>

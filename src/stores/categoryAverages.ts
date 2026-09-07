@@ -61,6 +61,11 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
         return transactionCategoriesStore.allTransactionCategoriesMap[categoryId];
     }
 
+    // the home page overview category filter marks a category id true when it is filtered out
+    function isExcludedCategory(categoryId: string): boolean {
+        return settingsStore.appSettings.overviewTransactionCategoryFilterInHomePage[categoryId] === true;
+    }
+
     function resolveAmount(amount: number, accountId: string): number | null {
         const defaultCurrency = userStore.currentUserDefaultCurrency;
         const account = accountsStore.allAccountsMap[accountId];
@@ -129,7 +134,8 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
                 baselineYearMonths: baselineYearMonths,
                 currentYearMonth: currentYearMonth,
                 resolveCategory: resolveCategory,
-                resolveAmount: resolveAmount
+                resolveAmount: resolveAmount,
+                isExcludedCategory: isExcludedCategory
             });
 
             categoryAveragesData.value = result;

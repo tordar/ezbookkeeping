@@ -32,6 +32,7 @@ function month(yearMonth: number, items: [string, number][]): TransactionStatist
 
 const resolveCategory = (categoryId: string): CategoryAveragesCategoryInfo | undefined => CATEGORIES[categoryId];
 const resolveAmount = (amount: number): number | null => amount;
+const excludeNothing = (): boolean => false;
 
 function build(fullMonthTrends: TransactionStatisticTrendsResponseItem[], toDateTrends: TransactionStatisticTrendsResponseItem[], baselineYearMonths: number[], currentYearMonth: number) {
     return buildCategoryAverages({
@@ -40,7 +41,20 @@ function build(fullMonthTrends: TransactionStatisticTrendsResponseItem[], toDate
         baselineYearMonths,
         currentYearMonth,
         resolveCategory,
-        resolveAmount
+        resolveAmount,
+        isExcludedCategory: excludeNothing
+    });
+}
+
+function buildWithExcluded(excludedCategoryIds: string[], fullMonthTrends: TransactionStatisticTrendsResponseItem[], toDateTrends: TransactionStatisticTrendsResponseItem[], baselineYearMonths: number[], currentYearMonth: number) {
+    return buildCategoryAverages({
+        fullMonthTrends,
+        toDateTrends,
+        baselineYearMonths,
+        currentYearMonth,
+        resolveCategory,
+        resolveAmount,
+        isExcludedCategory: (categoryId: string) => excludedCategoryIds.indexOf(categoryId) >= 0
     });
 }
 
@@ -183,7 +197,8 @@ describe('buildCategoryAverages', () => {
             baselineYearMonths: [202608],
             currentYearMonth: 202609,
             resolveCategory,
-            resolveAmount: (amount: number) => amount === 700 ? null : amount
+            resolveAmount: (amount: number) => amount === 700 ? null : amount,
+            isExcludedCategory: excludeNothing
         });
 
         expect(result.rows[0]!.averageFullMonth).toBe(1000);
@@ -193,5 +208,74 @@ describe('buildCategoryAverages', () => {
     test('reports no unconverted amounts when every amount converts', () => {
         const result = build([month(202608, [['11', 1000]])], [], [202608], 202609);
         expect(result.hasUnconvertedAmounts).toBe(false);
+    });
+});
+
+describe('buildCategoryAverages with excluded categories', () => {
+    test('an excluded sub category keeps its own row but leaves the total alone', () => {
+        const result = buildWithExcluded(['21'],
+            [month(202608, [['11', 1000], ['21', 18000]])],
+            [month(202608, [['11', 400], ['21', 9000]])],
+            [202608], 202609
+        );
+
+        const husl = result.rows.find(row => row.categoryId === '2')!;
+        expect(husl.excluded).toBe(true);
+        expect(husl.averageFullMonth).toBe(18000);
+
+        expect(result.total.averageFullMonth).toBe(1000);
+        expect(result.total.averageToDate).toBe(400);
+    });
+
+    test('an excluded sub does not contribute to its primary', () => {
+        const result = buildWithExcluded(['12'],
+            [month(202608, [['11', 1000], ['12', 500]])],
+            [], [202608], 202609
+        );
+
+        const mat = result.rows.find(row => row.categoryId === '1')!;
+        expect(mat.excluded).toBe(false);
+        expect(mat.averageFullMonth).toBe(1000);
+
+        const excludedSub = mat.subRows.find(row => row.categoryId === '12')!;
+        expect(excludedSub.excluded).toBe(true);
+        expect(excludedSub.averageFullMonth).toBe(500);
+
+        expect(result.total.averageFullMonth).toBe(1000);
+    });
+
+    test('a primary is only excluded when every one of its subs is', () => {
+        const partly = buildWithExcluded(['12'], [month(202608, [['11', 1000], ['12', 500]])], [], [202608], 202609);
+        expect(partly.rows.find(row => row.categoryId === '1')!.excluded).toBe(false);
+
+        const fully = buildWithExcluded(['11', '12'], [month(202608, [['11', 1000], ['12', 500]])], [], [202608], 202609);
+        expect(fully.rows.find(row => row.categoryId === '1')!.excluded).toBe(true);
+        expect(fully.total.averageFullMonth).toBe(0);
+    });
+
+    test('excluded rows sort below included ones regardless of size', () => {
+        const result = buildWithExcluded(['21'],
+            [month(202608, [['11', 1000], ['21', 18000]])],
+            [], [202608], 202609
+        );
+
+        expect(result.rows.map(row => row.categoryId)).toEqual(['1', '2']);
+    });
+
+    test('excluding nothing leaves every row included', () => {
+        const result = buildWithExcluded([], [month(202608, [['11', 1000]])], [], [202608], 202609);
+        expect(result.rows[0]!.excluded).toBe(false);
+        expect(result.total.averageFullMonth).toBe(1000);
+    });
+
+    test('spent so far in the current month also ignores excluded categories', () => {
+        const result = buildWithExcluded(['21'],
+            [month(202608, [['11', 1000], ['21', 18000]])],
+            [month(202608, [['11', 400]]), month(202609, [['11', 250], ['21', 2799]])],
+            [202608], 202609
+        );
+
+        expect(result.total.spentSoFar).toBe(250);
+        expect(result.rows.find(row => row.categoryId === '2')!.spentSoFar).toBe(2799);
     });
 });
