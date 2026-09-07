@@ -109,71 +109,9 @@
         </v-col>
 
         <v-col cols="12" md="6">
-            <v-row>
-                <v-col cols="12" md="6">
-                    <income-expense-overview-card
-                        :loading="loadingOverview" :disabled="loadingOverview" :icon="mdiCalendarTodayOutline"
-                        :title="tt('Today')"
-                        :expense-amount="transactionOverview.today && transactionOverview.today.valid ? getDisplayExpenseAmount(transactionOverview.today) : ''"
-                        :income-amount="transactionOverview.today && transactionOverview.today.valid ? getDisplayIncomeAmount(transactionOverview.today) : ''"
-                        :datetime="displayDateRange?.today?.displayTime || ''"
-                    >
-                        <template #menus>
-                            <v-list-item :prepend-icon="mdiListBoxOutline" :to="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.Today.type })}`">
-                                <v-list-item-title>{{ tt('View Details') }}</v-list-item-title>
-                            </v-list-item>
-                        </template>
-                    </income-expense-overview-card>
-                </v-col>
-
-                <v-col cols="12" md="6">
-                    <income-expense-overview-card
-                        :loading="loadingOverview" :disabled="loadingOverview" :icon="mdiCalendarWeekOutline"
-                        :title="tt('This Week')"
-                        :expense-amount="transactionOverview.thisWeek && transactionOverview.thisWeek.valid ? getDisplayExpenseAmount(transactionOverview.thisWeek) : ''"
-                        :income-amount="transactionOverview.thisWeek && transactionOverview.thisWeek.valid ? getDisplayIncomeAmount(transactionOverview.thisWeek) : ''"
-                        :datetime="displayDateRange?.thisWeek?.startTime + '-' + displayDateRange?.thisWeek?.endTime"
-                    >
-                        <template #menus>
-                            <v-list-item :prepend-icon="mdiListBoxOutline" :to="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisWeek.type })}`">
-                                <v-list-item-title>{{ tt('View Details') }}</v-list-item-title>
-                            </v-list-item>
-                        </template>
-                    </income-expense-overview-card>
-                </v-col>
-
-                <v-col cols="12" md="6">
-                    <income-expense-overview-card
-                        :loading="loadingOverview" :disabled="loadingOverview" :icon="mdiCalendarMonthOutline"
-                        :title="tt('This Month')"
-                        :expense-amount="transactionOverview.thisMonth && transactionOverview.thisMonth.valid ? getDisplayExpenseAmount(transactionOverview.thisMonth) : ''"
-                        :income-amount="transactionOverview.thisMonth && transactionOverview.thisMonth.valid ? getDisplayIncomeAmount(transactionOverview.thisMonth) : ''"
-                        :datetime="displayDateRange?.thisMonth?.startTime + '-' + displayDateRange?.thisMonth?.endTime"
-                    >
-                        <template #menus>
-                            <v-list-item :prepend-icon="mdiListBoxOutline" :to="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisMonth.type })}`">
-                                <v-list-item-title>{{ tt('View Details') }}</v-list-item-title>
-                            </v-list-item>
-                        </template>
-                    </income-expense-overview-card>
-                </v-col>
-
-                <v-col cols="12" md="6">
-                    <income-expense-overview-card
-                        :loading="loadingOverview" :disabled="loadingOverview" :icon="mdiLayersTripleOutline"
-                        :title="tt('This Year')"
-                        :expense-amount="transactionOverview.thisYear && transactionOverview.thisYear.valid ? getDisplayExpenseAmount(transactionOverview.thisYear) : ''"
-                        :income-amount="transactionOverview.thisYear && transactionOverview.thisYear.valid ? getDisplayIncomeAmount(transactionOverview.thisYear) : ''"
-                        :datetime="displayDateRange?.thisYear?.displayTime || ''"
-                    >
-                        <template #menus>
-                            <v-list-item :prepend-icon="mdiListBoxOutline" :to="`/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: DateRange.ThisYear.type })}`">
-                                <v-list-item-title>{{ tt('View Details') }}</v-list-item-title>
-                            </v-list-item>
-                        </template>
-                    </income-expense-overview-card>
-                </v-col>
-            </v-row>
+            <category-averages-card :data="categoryAveragesStore.categoryAveragesData"
+                                    :period-title="categoryAveragesPeriodTitle"
+                                    :loading="loadingOverview" :disabled="loadingOverview" />
         </v-col>
 
         <v-col cols="12" md="6">
@@ -188,8 +126,8 @@
 
 <script setup lang="ts">
 import SnackBar from '@/components/desktop/SnackBar.vue';
-import IncomeExpenseOverviewCard from './overview/cards/IncomeExpenseOverviewCard.vue';
 import MonthlyIncomeAndExpenseCard, { type MonthlyIncomeAndExpenseCardClickEvent } from './overview/cards/MonthlyIncomeAndExpenseCard.vue';
+import CategoryAveragesCard from './overview/cards/CategoryAveragesCard.vue';
 
 import { ref, computed, useTemplateRef } from 'vue';
 import { useRouter } from 'vue-router';
@@ -201,6 +139,7 @@ import { useHomePageBase } from '@/views/base/HomePageBase.ts';
 import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useOverviewStore } from '@/stores/overview.ts';
+import { useCategoryAveragesStore } from '@/stores/categoryAverages.ts';
 
 import { DateRange } from '@/core/datetime.ts';
 import { ThemeType } from '@/core/theme.ts';
@@ -209,7 +148,7 @@ import {
     LATEST_12MONTHS_TRANSACTION_AMOUNTS_REQUEST_TYPES
 } from '@/models/transaction.ts';
 
-import { getUnixTimeBeforeUnixTime, getUnixTimeAfterUnixTime } from '@/lib/datetime.ts';
+import { getUnixTimeBeforeUnixTime, getUnixTimeAfterUnixTime, parseDateTimeFromUnixTime } from '@/lib/datetime.ts';
 import { isUserLogined, isUserUnlocked } from '@/lib/userstate.ts';
 
 import {
@@ -218,12 +157,7 @@ import {
     mdiEyeOffOutline,
     mdiBankOutline,
     mdiCreditCardOutline,
-    mdiPiggyBankOutline,
-    mdiCalendarTodayOutline,
-    mdiCalendarWeekOutline,
-    mdiCalendarMonthOutline,
-    mdiLayersTripleOutline,
-    mdiListBoxOutline
+    mdiPiggyBankOutline
 } from '@mdi/js';
 
 type SnackBarType = InstanceType<typeof SnackBar>;
@@ -231,7 +165,7 @@ type SnackBarType = InstanceType<typeof SnackBar>;
 const router = useRouter();
 const theme = useTheme();
 
-const { tt, formatNumberToLocalizedNumerals } = useI18n();
+const { tt, formatNumberToLocalizedNumerals, formatDateTimeToLongMonthDay } = useI18n();
 const {
     showAmountInHomePage,
     allAccounts,
@@ -247,6 +181,7 @@ const {
 const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 const overviewStore = useOverviewStore();
+const categoryAveragesStore = useCategoryAveragesStore();
 
 const snackbar = useTemplateRef<SnackBarType>('snackbar');
 
@@ -255,6 +190,13 @@ const loadingOverview = ref<boolean>(true);
 const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType.Dark);
 
 const displayAccountCount = computed<string>(() => formatNumberToLocalizedNumerals(allAccounts.value?.length ?? 0));
+
+const categoryAveragesPeriodTitle = computed<string>(() => {
+    const monthStart = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(overviewStore.transactionDataRange.thisMonth.startTime));
+    const today = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(overviewStore.transactionDataRange.today.startTime));
+
+    return `${monthStart} - ${today}`;
+});
 
 function clickMonthlyIncomeOrExpense(e: MonthlyIncomeAndExpenseCardClickEvent): void {
     const minTime = e.monthStartTime;
@@ -303,7 +245,8 @@ function reload(force: boolean): void {
     const promises = [
         accountsStore.loadAllAccounts({ force: false }),
         transactionCategoriesStore.loadAllCategories({ force: false }),
-        overviewStore.loadTransactionOverview({ force: force, loadLast11Months: true })
+        overviewStore.loadTransactionOverview({ force: force, loadLast11Months: true }),
+        categoryAveragesStore.loadCategoryAverages({ force: force })
     ];
 
     Promise.all(promises).then(() => {

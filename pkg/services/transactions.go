@@ -2539,8 +2539,21 @@ func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c cor
 	return transactionTotalAmounts, nil
 }
 
+// isTransactionAfterMaxDayOfMonth returns whether the transaction falls after the specified day of
+// the month in the specified timezone. A maxDayOfMonth of zero or less means no limit, so that
+// month-to-date statistics and whole month statistics can share the same code path.
+func isTransactionAfterMaxDayOfMonth(transactionTime int64, timezone *time.Location, maxDayOfMonth int32) bool {
+	if maxDayOfMonth <= 0 {
+		return false
+	}
+
+	yearMonthDay := utils.FormatUnixTimeToNumericYearMonthDay(utils.GetUnixTimeFromTransactionTime(transactionTime), timezone)
+
+	return yearMonthDay%100 > maxDayOfMonth
+}
+
 // GetAccountsAndCategoriesMonthlyInflowAndOutflow returns the every accounts monthly inflows and outflows amount by specific date range
-func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.Transaction, error) {
+func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, maxDayOfMonth int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.Transaction, error) {
 	if uid <= 0 {
 		return nil, errs.ErrUserIdInvalid
 	}
@@ -2633,6 +2646,10 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 
 		if useTransactionTimezone {
 			timeZone = time.FixedZone("Transaction Timezone", int(transaction.TimezoneUtcOffset)*60)
+		}
+
+		if isTransactionAfterMaxDayOfMonth(transaction.TransactionTime, timeZone, maxDayOfMonth) {
+			continue
 		}
 
 		yearMonth := utils.FormatUnixTimeToNumericYearMonth(utils.GetUnixTimeFromTransactionTime(transaction.TransactionTime), timeZone)

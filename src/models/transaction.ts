@@ -687,6 +687,7 @@ export interface YearMonthRangeRequest {
 }
 
 export interface TransactionStatisticTrendsRequest extends YearMonthRangeRequest {
+    readonly maxDayOfMonth?: number;
     readonly tagFilter: string;
     readonly keyword: string;
     readonly matchMode: number;

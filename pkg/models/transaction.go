@@ -351,6 +351,7 @@ type TransactionStatisticRequest struct {
 // TransactionStatisticTrendsRequest represents all parameters of transaction statistic trends request
 type TransactionStatisticTrendsRequest struct {
 	YearMonthRangeRequest
+	MaxDayOfMonth          int32          `form:"max_day_of_month" binding:"min=0,max=31"`
 	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
 	Keyword                string         `form:"keyword"`
 	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
