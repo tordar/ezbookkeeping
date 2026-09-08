@@ -75,6 +75,55 @@ function emptyAmounts(): WritableAmounts {
 
 type AmountField = keyof WritableAmounts;
 
+export interface CurrentPeriod {
+    // the period's key, named after the month it starts in, as year * 100 + month
+    readonly yearMonth: number;
+    // how many days of the period have passed, counting the first day as 1
+    readonly daysElapsed: number;
+    readonly startYear: number;
+    readonly startMonth: number;
+    readonly startDay: number;
+}
+
+function daysInMonth(year: number, month: number): number {
+    return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+// getCurrentPeriod locates today within a spending period that starts on periodStartDay of the
+// month. A periodStartDay of 0 or 1 gives plain calendar months; 25 gives a salary style cycle
+// where the period named August runs from 25 August to 24 September.
+export function getCurrentPeriod(year: number, month: number, day: number, periodStartDay: number): CurrentPeriod {
+    if (periodStartDay <= 1) {
+        return { yearMonth: year * 100 + month, daysElapsed: day, startYear: year, startMonth: month, startDay: 1 };
+    }
+
+    if (day >= periodStartDay) {
+        return {
+            yearMonth: year * 100 + month,
+            daysElapsed: day - periodStartDay + 1,
+            startYear: year,
+            startMonth: month,
+            startDay: periodStartDay
+        };
+    }
+
+    let startYear = year;
+    let startMonth = month - 1;
+
+    if (startMonth < 1) {
+        startMonth = 12;
+        startYear -= 1;
+    }
+
+    return {
+        yearMonth: startYear * 100 + startMonth,
+        daysElapsed: daysInMonth(startYear, startMonth) - periodStartDay + 1 + day,
+        startYear: startYear,
+        startMonth: startMonth,
+        startDay: periodStartDay
+    };
+}
+
 // getBaselineYearMonths returns the given number of complete months before the current month,
 // oldest first, as year * 100 + month
 export function getBaselineYearMonths(currentYear: number, currentMonth: number, monthCount: number): number[] {

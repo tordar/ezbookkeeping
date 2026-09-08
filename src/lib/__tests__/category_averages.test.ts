@@ -5,6 +5,7 @@ import type { TransactionStatisticTrendsResponseItem } from '@/models/transactio
 
 import {
     getBaselineYearMonths,
+    getCurrentPeriod,
     buildCategoryAverages,
     type CategoryAveragesCategoryInfo
 } from '@/lib/category_averages.ts';
@@ -277,5 +278,63 @@ describe('buildCategoryAverages with excluded categories', () => {
 
         expect(result.total.spentSoFar).toBe(250);
         expect(result.rows.find(row => row.categoryId === '2')!.spentSoFar).toBe(2799);
+    });
+});
+
+describe('getCurrentPeriod', () => {
+    test('plain calendar months when the period starts on the first', () => {
+        for (const startDay of [0, 1]) {
+            const period = getCurrentPeriod(2026, 9, 8, startDay);
+            expect(period.yearMonth).toBe(202609);
+            expect(period.daysElapsed).toBe(8);
+            expect(period.startYear).toBe(2026);
+            expect(period.startMonth).toBe(9);
+            expect(period.startDay).toBe(1);
+        }
+    });
+
+    test('a day before the start day belongs to the period that began last month', () => {
+        // 25-31 Aug is 7 days, plus 1-8 Sep is 8, so 8 September is 15 days in
+        const period = getCurrentPeriod(2026, 9, 8, 25);
+        expect(period.yearMonth).toBe(202608);
+        expect(period.daysElapsed).toBe(15);
+        expect(period.startYear).toBe(2026);
+        expect(period.startMonth).toBe(8);
+        expect(period.startDay).toBe(25);
+    });
+
+    test('the start day itself begins a new period', () => {
+        const period = getCurrentPeriod(2026, 9, 25, 25);
+        expect(period.yearMonth).toBe(202609);
+        expect(period.daysElapsed).toBe(1);
+        expect(period.startMonth).toBe(9);
+    });
+
+    test('the day before the start day closes the previous period', () => {
+        const period = getCurrentPeriod(2026, 9, 24, 25);
+        expect(period.yearMonth).toBe(202608);
+        expect(period.daysElapsed).toBe(31); // 25-31 Aug plus 1-24 Sep
+    });
+
+    test('short months shorten the period', () => {
+        expect(getCurrentPeriod(2026, 3, 24, 25).daysElapsed).toBe(28);
+        expect(getCurrentPeriod(2024, 3, 24, 25).daysElapsed).toBe(29); // leap year
+    });
+
+    test('crosses the year boundary', () => {
+        const period = getCurrentPeriod(2026, 1, 3, 25);
+        expect(period.yearMonth).toBe(202512);
+        expect(period.daysElapsed).toBe(10);
+        expect(period.startYear).toBe(2025);
+        expect(period.startMonth).toBe(12);
+    });
+
+    test('baseline periods are the ones before the current period', () => {
+        const period = getCurrentPeriod(2026, 9, 8, 25);
+        const baseline = getBaselineYearMonths(period.startYear, period.startMonth, 12);
+
+        expect(baseline).toHaveLength(12);
+        expect(baseline).not.toContain(202608);
+        expect(baseline[baseline.length - 1]).toBe(202607);
     });
 });

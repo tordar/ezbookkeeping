@@ -12,9 +12,10 @@ import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
 import type { TransactionStatisticTrendsResponseItem } from '@/models/transaction.ts';
 
 import { isNumber } from '@/lib/common.ts';
-import { getCurrentDateTime } from '@/lib/datetime.ts';
+import { getCurrentDateTime, getYearMonthDayDateTime } from '@/lib/datetime.ts';
 import {
     getBaselineYearMonths,
+    getCurrentPeriod,
     buildCategoryAverages,
     type CategoryAveragesCategoryInfo,
     type CategoryAveragesResult
@@ -23,8 +24,12 @@ import {
 import services from '@/lib/services.ts';
 import logger from '@/lib/logger.ts';
 
-// the number of complete months the averages are calculated over
+// the number of complete periods the averages are calculated over
 export const CATEGORY_AVERAGES_BASELINE_MONTH_COUNT: number = 12;
+
+// spending periods run from this day of the month to the day before it in the next month, so they
+// line up with when salary lands rather than with the calendar
+export const CATEGORY_AVERAGES_PERIOD_START_DAY: number = 25;
 
 const EMPTY_RESULT: CategoryAveragesResult = {
     rows: [],
@@ -46,6 +51,8 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
     const categoryAveragesData = ref<CategoryAveragesResult>(EMPTY_RESULT);
     const categoryAveragesStateInvalid = ref<boolean>(true);
     const currentDayOfMonth = ref<number>(0);
+    // the first day of the period the card is reporting on, for the heading
+    const currentPeriodStartUnixTime = ref<number>(0);
 
     function updateCategoryAveragesInvalidState(invalidState: boolean): void {
         categoryAveragesStateInvalid.value = invalidState;
@@ -55,6 +62,7 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
         categoryAveragesData.value = EMPTY_RESULT;
         categoryAveragesStateInvalid.value = true;
         currentDayOfMonth.value = 0;
+        currentPeriodStartUnixTime.value = 0;
     }
 
     function resolveCategory(categoryId: string): CategoryAveragesCategoryInfo | undefined {
@@ -97,8 +105,9 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             return Promise.resolve(categoryAveragesData.value);
         }
 
-        const currentYearMonth = currentYear * 100 + currentMonth;
-        const baselineYearMonths = getBaselineYearMonths(currentYear, currentMonth, CATEGORY_AVERAGES_BASELINE_MONTH_COUNT);
+        const period = getCurrentPeriod(currentYear, currentMonth, currentDay, CATEGORY_AVERAGES_PERIOD_START_DAY);
+        const currentYearMonth = period.yearMonth;
+        const baselineYearMonths = getBaselineYearMonths(period.startYear, period.startMonth, CATEGORY_AVERAGES_BASELINE_MONTH_COUNT);
         const useTransactionTimezone = settingsStore.appSettings.timezoneUsedForStatisticsInHomePage === TimezoneTypeForStatistics.TransactionTimezone.type;
 
         const baseRequest = {
@@ -107,7 +116,8 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             tagFilter: '',
             keyword: '',
             matchMode: 0,
-            useTransactionTimezone: useTransactionTimezone
+            useTransactionTimezone: useTransactionTimezone,
+            periodStartDay: CATEGORY_AVERAGES_PERIOD_START_DAY
         };
 
         // accounts and categories are needed to resolve every amount, so make sure they are loaded
@@ -117,7 +127,7 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             transactionCategoriesStore.loadAllCategories({ force: false })
         ]).then(() => Promise.all([
             services.getTransactionStatisticsTrends(baseRequest),
-            services.getTransactionStatisticsTrends({ ...baseRequest, maxDayOfMonth: currentDay })
+            services.getTransactionStatisticsTrends({ ...baseRequest, maxDaysIntoPeriod: period.daysElapsed })
         ])).then(([fullMonthResponse, toDateResponse]) => {
             const fullMonthTrends = fullMonthResponse.data?.result as TransactionStatisticTrendsResponseItem[] | undefined;
             const toDateTrends = toDateResponse.data?.result as TransactionStatisticTrendsResponseItem[] | undefined;
@@ -141,6 +151,7 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             categoryAveragesData.value = result;
             categoryAveragesStateInvalid.value = false;
             currentDayOfMonth.value = currentDay;
+            currentPeriodStartUnixTime.value = getYearMonthDayDateTime(period.startYear, period.startMonth, period.startDay).getUnixTime();
 
             return result;
         }).catch(error => {
@@ -157,6 +168,7 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
         categoryAveragesData,
         categoryAveragesStateInvalid,
         currentDayOfMonth,
+        currentPeriodStartUnixTime,
         // functions
         updateCategoryAveragesInvalidState,
         resetCategoryAverages,

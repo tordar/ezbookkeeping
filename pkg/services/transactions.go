@@ -2539,21 +2539,57 @@ func (s *TransactionService) GetAccountsAndCategoriesTotalInflowAndOutflow(c cor
 	return transactionTotalAmounts, nil
 }
 
-// isTransactionAfterMaxDayOfMonth returns whether the transaction falls after the specified day of
-// the month in the specified timezone. A maxDayOfMonth of zero or less means no limit, so that
-// month-to-date statistics and whole month statistics can share the same code path.
-func isTransactionAfterMaxDayOfMonth(transactionTime int64, timezone *time.Location, maxDayOfMonth int32) bool {
-	if maxDayOfMonth <= 0 {
+// transactionPeriod returns the year-month key of the period a transaction falls in, and how many
+// days into that period it is (1 on the first day). A periodStartDay of 0 or 1 gives plain calendar
+// months; a higher value gives a salary style cycle, so with 25 the period named 2026-08 runs from
+// 25 August to 24 September. Periods are named after the month they start in.
+func transactionPeriod(transactionTime int64, timezone *time.Location, periodStartDay int32) (int32, int32) {
+	transactionDateTime := time.Unix(utils.GetUnixTimeFromTransactionTime(transactionTime), 0)
+
+	if timezone != nil {
+		transactionDateTime = transactionDateTime.In(timezone)
+	}
+
+	year := int32(transactionDateTime.Year())
+	month := int32(transactionDateTime.Month())
+	day := int32(transactionDateTime.Day())
+
+	if periodStartDay <= 1 {
+		return year*100 + month, day
+	}
+
+	if day >= periodStartDay {
+		return year*100 + month, day - periodStartDay + 1
+	}
+
+	// the period started on periodStartDay of the previous month, whose length varies
+	previousYear, previousMonth := year, month-1
+
+	if previousMonth < 1 {
+		previousMonth = 12
+		previousYear--
+	}
+
+	daysInPreviousMonth := int32(transactionDateTime.AddDate(0, 0, -int(day)).Day())
+
+	return previousYear*100 + previousMonth, daysInPreviousMonth - periodStartDay + 1 + day
+}
+
+// isTransactionAfterMaxDaysIntoPeriod returns whether the transaction falls beyond the first
+// maxDaysIntoPeriod days of its period. A maxDaysIntoPeriod of zero or less means no limit, so that
+// period-to-date statistics and whole period statistics share the same code path.
+func isTransactionAfterMaxDaysIntoPeriod(transactionTime int64, timezone *time.Location, periodStartDay int32, maxDaysIntoPeriod int32) bool {
+	if maxDaysIntoPeriod <= 0 {
 		return false
 	}
 
-	yearMonthDay := utils.FormatUnixTimeToNumericYearMonthDay(utils.GetUnixTimeFromTransactionTime(transactionTime), timezone)
+	_, daysIntoPeriod := transactionPeriod(transactionTime, timezone, periodStartDay)
 
-	return yearMonthDay%100 > maxDayOfMonth
+	return daysIntoPeriod > maxDaysIntoPeriod
 }
 
 // GetAccountsAndCategoriesMonthlyInflowAndOutflow returns the every accounts monthly inflows and outflows amount by specific date range
-func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, maxDayOfMonth int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.Transaction, error) {
+func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, periodStartDay int32, maxDaysIntoPeriod int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.Transaction, error) {
 	if uid <= 0 {
 		return nil, errs.ErrUserIdInvalid
 	}
@@ -2574,6 +2610,19 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 
 		if err != nil {
 			return nil, errs.ErrSystemError
+		}
+	}
+
+	// a period that starts mid month runs past the end of the month it is named after, and starts
+	// after the beginning of it, so widen the query by a month either side and let the period
+	// filter below discard whatever falls outside the requested range
+	if periodStartDay > 1 {
+		if startTransactionTime > 0 {
+			startTransactionTime = utils.GetMinTransactionTimeFromUnixTime(time.Unix(utils.GetUnixTimeFromTransactionTime(startTransactionTime), 0).AddDate(0, -1, 0).Unix())
+		}
+
+		if endTransactionTime > 0 {
+			endTransactionTime = utils.GetMaxTransactionTimeFromUnixTime(time.Unix(utils.GetUnixTimeFromTransactionTime(endTransactionTime), 0).AddDate(0, 1, 0).Unix())
 		}
 	}
 
@@ -2648,11 +2697,11 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 			timeZone = time.FixedZone("Transaction Timezone", int(transaction.TimezoneUtcOffset)*60)
 		}
 
-		if isTransactionAfterMaxDayOfMonth(transaction.TransactionTime, timeZone, maxDayOfMonth) {
+		yearMonth, daysIntoPeriod := transactionPeriod(transaction.TransactionTime, timeZone, periodStartDay)
+
+		if maxDaysIntoPeriod > 0 && daysIntoPeriod > maxDaysIntoPeriod {
 			continue
 		}
-
-		yearMonth := utils.FormatUnixTimeToNumericYearMonth(utils.GetUnixTimeFromTransactionTime(transaction.TransactionTime), timeZone)
 
 		if (startYearMonth > 0 && yearMonth < startYearMonth) || (endYearMonth > 0 && yearMonth > endYearMonth) {
 			continue

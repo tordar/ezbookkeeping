@@ -615,8 +615,12 @@ export default {
             queryParams.push(`end_year_month=${req.endYearMonth}`);
         }
 
-        if (req.maxDayOfMonth) {
-            queryParams.push(`max_day_of_month=${req.maxDayOfMonth}`);
+        if (req.periodStartDay) {
+            queryParams.push(`period_start_day=${req.periodStartDay}`);
+        }
+
+        if (req.maxDaysIntoPeriod) {
+            queryParams.push(`max_days_into_period=${req.maxDaysIntoPeriod}`);
         }
 
         if (req.tagFilter) {

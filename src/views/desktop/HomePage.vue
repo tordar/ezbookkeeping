@@ -192,10 +192,16 @@ const isDarkMode = computed<boolean>(() => theme.global.name.value === ThemeType
 const displayAccountCount = computed<string>(() => formatNumberToLocalizedNumerals(allAccounts.value?.length ?? 0));
 
 const categoryAveragesPeriodTitle = computed<string>(() => {
-    const monthStart = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(overviewStore.transactionDataRange.thisMonth.startTime));
+    const periodStartUnixTime = categoryAveragesStore.currentPeriodStartUnixTime;
+
+    if (!periodStartUnixTime) {
+        return '';
+    }
+
+    const periodStart = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(periodStartUnixTime));
     const today = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(overviewStore.transactionDataRange.today.startTime));
 
-    return `${monthStart} - ${today}`;
+    return `${periodStart} - ${today}`;
 });
 
 function clickMonthlyIncomeOrExpense(e: MonthlyIncomeAndExpenseCardClickEvent): void {
