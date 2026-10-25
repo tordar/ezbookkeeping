@@ -82,6 +82,7 @@ import { useAccountsStore } from '@/stores/account.ts';
 import { useTransactionCategoriesStore } from '@/stores/transactionCategory.ts';
 import { useTransactionTemplatesStore } from '@/stores/transactionTemplate.ts';
 import { useOverviewStore } from '@/stores/overview.ts';
+import { useCategoryAveragesStore } from '@/stores/categoryAverages.ts';
 
 import type { PartialRecord } from '@/core/base.ts';
 import {
@@ -127,6 +128,7 @@ const accountsStore = useAccountsStore();
 const transactionCategoriesStore = useTransactionCategoriesStore();
 const transactionTemplatesStore = useTransactionTemplatesStore();
 const overviewStore = useOverviewStore();
+const categoryAveragesStore = useCategoryAveragesStore();
 
 const aiImageRecognitionSheet = useTemplateRef<AIImageRecognitionSheetType>('aiImageRecognitionSheet');
 
@@ -252,6 +254,12 @@ function reloadOverviewData(force: boolean): Promise<unknown>[] {
 
     if (requirements[OverviewWidgetDataRequirement.CurrentMonthTransactions]) {
         promises.push(overviewStore.loadCurrentMonthTransactions({
+            force: force
+        }));
+    }
+
+    if (requirements[OverviewWidgetDataRequirement.CategoryAverages]) {
+        promises.push(categoryAveragesStore.loadCategoryAverages({
             force: force
         }));
     }

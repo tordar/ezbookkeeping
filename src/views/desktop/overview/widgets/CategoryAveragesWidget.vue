@@ -7,14 +7,9 @@
 <script setup lang="ts">
 import CategoryAveragesCard from '@/components/desktop/CategoryAveragesCard.vue';
 
-import { computed } from 'vue';
+import { useCategoryAveragesWidgetBase } from '@/views/base/overview/CategoryAveragesWidgetBase.ts';
 
-import { useI18n } from '@/locales/helpers.ts';
-
-import { useOverviewStore } from '@/stores/overview.ts';
 import { useCategoryAveragesStore } from '@/stores/categoryAverages.ts';
-
-import { parseDateTimeFromUnixTime } from '@/lib/datetime.ts';
 
 defineProps<{
     loading?: boolean;
@@ -22,21 +17,7 @@ defineProps<{
     title?: string;
 }>();
 
-const { formatDateTimeToLongMonthDay } = useI18n();
+const { periodTitle } = useCategoryAveragesWidgetBase();
 
-const overviewStore = useOverviewStore();
 const categoryAveragesStore = useCategoryAveragesStore();
-
-const periodTitle = computed<string>(() => {
-    const periodStartUnixTime = categoryAveragesStore.currentPeriodStartUnixTime;
-
-    if (!periodStartUnixTime) {
-        return '';
-    }
-
-    const periodStart = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(periodStartUnixTime));
-    const today = formatDateTimeToLongMonthDay(parseDateTimeFromUnixTime(overviewStore.transactionDataRange.today.startTime));
-
-    return `${periodStart} - ${today}`;
-});
 </script>

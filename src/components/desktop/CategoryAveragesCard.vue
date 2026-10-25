@@ -89,12 +89,9 @@ import { ref, computed } from 'vue';
 
 import { useI18n } from '@/locales/helpers.ts';
 
+import { useCategoryAveragesWidgetBase } from '@/views/base/overview/CategoryAveragesWidgetBase.ts';
+
 import { useSettingsStore } from '@/stores/setting.ts';
-import { useUserStore } from '@/stores/user.ts';
-
-import { AMOUNT_FACTOR, DISPLAY_HIDDEN_AMOUNT } from '@/consts/numeral.ts';
-
-import { parseBigDecimal } from '@/lib/numeral.ts';
 
 import type { CategoryAveragesRow, CategoryAveragesTotal, CategoryAveragesResult } from '@/lib/category_averages.ts';
 
@@ -116,35 +113,16 @@ const props = defineProps<{
     title?: string;
 }>();
 
-const { tt, formatAmountToLocalizedNumeralsWithCurrency, formatNumberToLocalizedNumerals } = useI18n();
+const { tt, formatNumberToLocalizedNumerals } = useI18n();
+const { displayAmount } = useCategoryAveragesWidgetBase();
 
 const settingsStore = useSettingsStore();
-const userStore = useUserStore();
 
 const expandedCategoryIds = ref<Record<string, boolean>>({});
 
 const rows = computed<CategoryAveragesRow[]>(() => props.data?.rows ?? []);
 const total = computed<CategoryAveragesTotal>(() => props.data?.total ?? { spentSoFar: 0, averageToDate: 0, averageFullMonth: 0 });
 const hasUnconvertedAmounts = computed<boolean>(() => props.data?.hasUnconvertedAmounts ?? false);
-
-// averages and month-to-date totals are only meaningful to the krone, and the decimals make the
-// columns much harder to scan. The currency formatter always renders two decimals and takes no
-// precision option, so read the decimal separator off a known value rather than assuming one.
-const decimalSeparator = computed<string>(() => {
-    const oneUnit = formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(AMOUNT_FACTOR), false);
-    return oneUnit.charAt(oneUnit.length - 3);
-});
-
-function displayAmount(amount: number): string {
-    if (!settingsStore.appSettings.showAmountInHomePage) {
-        return formatAmountToLocalizedNumeralsWithCurrency(DISPLAY_HIDDEN_AMOUNT, userStore.currentUserDefaultCurrency);
-    }
-
-    const wholeUnits = Math.round(amount / AMOUNT_FACTOR) * AMOUNT_FACTOR;
-    const formatted = formatAmountToLocalizedNumeralsWithCurrency(parseBigDecimal(wholeUnits), userStore.currentUserDefaultCurrency);
-
-    return formatted.replace(decimalSeparator.value + '00', '');
-}
 
 function getPacePercent(row: CategoryAveragesRow | CategoryAveragesTotal): number | null {
     if ('excluded' in row && row.excluded) {

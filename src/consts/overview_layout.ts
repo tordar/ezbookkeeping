@@ -1246,11 +1246,44 @@ export const MOBILE_OVERVIEW_WIDGET_DEFINITIONS: PartialRecord<OverviewWidgetTyp
             darkBackgroundColor: DEFAULT_MOBILE_ADD_TRANSACTION_BUTTON_BACKGROUND_COLOR
         },
         dataRequirements: []
+    },
+    [OverviewWidgetType.CategoryAverages]: {
+        type: OverviewWidgetType.CategoryAverages,
+        name: 'Category Averages',
+        supportsSettings: [
+            WIDGET_TITLE_SETTING,
+            WIDGET_SHOW_TITLE_SETTING
+        ],
+        defaultSettings: {
+            showTitle: false
+        },
+        dataRequirements: [
+            OverviewWidgetDataRequirement.CategoryAverages
+        ]
     }
 };
 
 export const DEFAULT_MOBILE_OVERVIEW_LAYOUT: MobileOverviewLayout = {
     widgets: [
+        {
+            id: 'default-account-balance-list',
+            type: OverviewWidgetType.AccountBalanceList,
+            settings: {
+                showTitle: false,
+                accountIds: [],
+                itemCount: 10,
+                sortBy: 'displayOrder',
+                alwaysShowAmount: false,
+                showAvailableCreditForCreditCard: false
+            }
+        },
+        {
+            id: 'default-category-averages',
+            type: OverviewWidgetType.CategoryAverages,
+            settings: {
+                showTitle: false
+            }
+        },
         {
             id: 'default-current-month-overview',
             type: OverviewWidgetType.CurrentMonthOverview,
