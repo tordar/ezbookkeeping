@@ -335,10 +335,6 @@ func startWebServer(c *core.CliContext) error {
 
 		apiRoute.GET("/logout.json", bindApiWithTokenUpdate(api.Tokens.TokenRevokeCurrentHandler, config))
 
-		if config.EnableBankIntegration {
-			apiRoute.GET("/bank_integration/callback", bindRedirect(api.BankIntegrationConnections.CallbackHandler, config))
-		}
-
 		apiV1Route := apiRoute.Group("/v1")
 		apiV1Route.Use(bindMiddleware(middlewares.JWTAuthorizationByHeader(config), config))
 		apiV1Route.Use(bindMiddleware(middlewares.APITokenIpLimit(config), config))
@@ -368,19 +364,6 @@ func startWebServer(c *core.CliContext) error {
 			if config.EnableOAuth2Login {
 				apiV1Route.GET("/users/external_auth/list.json", bindApi(api.UserExternalAuths.ExternalAuthListHandler, config))
 				apiV1Route.POST("/users/external_auth/unlink.json", bindApi(api.UserExternalAuths.UnlinkExternalAuthHandler, config))
-			}
-
-			// Bank Integration (Enable Banking)
-			if config.EnableBankIntegration {
-				apiV1Route.GET("/users/bank_integration/connections.json", bindApi(api.BankIntegrationConnections.ListConnectionsHandler, config))
-				apiV1Route.GET("/users/bank_integration/connections/transactions.json", bindApi(api.BankIntegrationConnections.GetConnectionTransactionsHandler, config))
-				apiV1Route.GET("/users/bank_integration/new_transactions.json", bindApi(api.BankIntegrationConnections.ListNewTransactionsHandler, config))
-				apiV1Route.POST("/users/bank_integration/new_transactions/accept.json", bindApi(api.BankIntegrationConnections.AcceptNewTransactionHandler, config))
-				apiV1Route.POST("/users/bank_integration/new_transactions/dismiss.json", bindApi(api.BankIntegrationConnections.DismissNewTransactionHandler, config))
-				apiV1Route.GET("/users/bank_integration/aspsps.json", bindApi(api.BankIntegrationConnections.GetAspspsHandler, config))
-				apiV1Route.POST("/users/bank_integration/auth/start.json", bindApi(api.BankIntegrationConnections.StartAuthHandler, config))
-				apiV1Route.POST("/users/bank_integration/auth/reauth.json", bindApi(api.BankIntegrationConnections.StartReauthHandler, config))
-				apiV1Route.POST("/users/bank_integration/disconnect.json", bindApi(api.BankIntegrationConnections.DisconnectHandler, config))
 			}
 
 			// Application Cloud Settings

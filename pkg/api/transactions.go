@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/mayswind/ezbookkeeping/pkg/core"
 	"github.com/mayswind/ezbookkeeping/pkg/duplicatechecker"
 	"github.com/mayswind/ezbookkeeping/pkg/errs"
+	"github.com/mayswind/ezbookkeeping/pkg/exchangerates"
 	"github.com/mayswind/ezbookkeeping/pkg/log"
 	"github.com/mayswind/ezbookkeeping/pkg/models"
 	"github.com/mayswind/ezbookkeeping/pkg/services"
@@ -1424,6 +1426,13 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 
 	log.Infof(c, "[transactions.TransactionQuickAddHandler] merchant=%q amount=%q accountName=%q type=%q", quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.AccountName, quickAddReq.Type)
 
+	parsedInput := parseQuickAddInput(quickAddReq.Merchant, string(quickAddReq.Amount), quickAddReq.AccountName)
+
+	if parsedInput.Amount <= 0 {
+		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\"", string(quickAddReq.Amount))
+		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", string(quickAddReq.Amount)))
+	}
+
 	transactionType := models.TRANSACTION_TYPE_EXPENSE
 	transactionDbType := models.TRANSACTION_DB_TYPE_EXPENSE
 	categoryType := models.CATEGORY_TYPE_EXPENSE
@@ -1484,7 +1493,7 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 			return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("category not found: %s", quickAddReq.CategoryName))
 		}
 	} else {
-		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, quickAddReq.Merchant, transactionDbType)
+		categoryId, err = a.transactions.GetMostFrequentCategoryByComment(c, uid, parsedInput.Name, transactionDbType)
 
 		if err != nil {
 			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to guess category for merchant \"%s\", because %s", quickAddReq.Merchant, err.Error())
@@ -1493,15 +1502,45 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		}
 	}
 
-	// Parse amount string: strip currency symbols/letters, handle comma decimals
-	amountStr := strings.TrimSpace(string(quickAddReq.Amount))
-	parsedAmount := parseAmountString(amountStr)
+	sourceAccount, err := a.accounts.GetAccountByAccountId(c, uid, accountId)
 
-	if parsedAmount <= 0 {
-		log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to parse amount \"%s\"", string(quickAddReq.Amount))
-		return nil, errs.NewIncompleteOrIncorrectSubmissionError(fmt.Errorf("invalid amount: %s", string(quickAddReq.Amount)))
+	if err != nil {
+		if !errs.IsCustomError(err) {
+			log.Errorf(c, "[transactions.TransactionQuickAddHandler] failed to get source account \"id:%d\" for user \"uid:%d\", because %s", accountId, uid, err.Error())
+		}
+
+		return nil, errs.Or(err, errs.ErrOperationFailed)
 	}
-	amountCents := int64(math.Round(parsedAmount * 100))
+
+	// a purchase abroad is converted at the latest rate and keeps its original amount in the
+	// comment, so it can be checked against the billed amount on the statement later
+	amount := parsedInput.Amount
+	comment := parsedInput.Description
+	tagNames := []string{quickAddPendingAITagName}
+
+	if parsedInput.Currency != sourceAccount.Currency {
+		rates, err := exchangerates.Container.GetLatestExchangeRates(c, uid, a.CurrentConfig())
+
+		if err != nil {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] failed to get exchange rates, because %s", err.Error())
+		}
+
+		convertedAmount, converted := convertQuickAddAmount(amount, parsedInput.Currency, sourceAccount.Currency, rates)
+
+		if converted {
+			amount = convertedAmount
+		} else {
+			log.Warnf(c, "[transactions.TransactionQuickAddHandler] cannot convert %s to %s, keeping the amount unconverted", parsedInput.Currency, sourceAccount.Currency)
+			tagNames = append(tagNames, quickAddUnconvertedTagName)
+		}
+
+		if parsedInput.OriginalAmountText != "" {
+			comment = comment + " (" + parsedInput.OriginalAmountText + ")"
+		}
+	}
+
+	amountCents := int64(math.Round(amount * 100))
+	tagIds := a.getQuickAddTagIds(c, uid, tagNames)
 
 	// Build the transaction create request and reuse existing logic
 	transactionCreateReq := &models.TransactionCreateRequest{
@@ -1511,7 +1550,7 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		UtcOffset:       int16(quickAddReq.UtcOffset),
 		SourceAccountId: accountId,
 		SourceAmount:    amountCents,
-		Comment:         quickAddReq.Merchant,
+		Comment:         comment,
 		GeoLocation:     quickAddReq.GeoLocation,
 	}
 
@@ -1534,30 +1573,20 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 
 	transaction := a.createNewTransactionModel(uid, transactionCreateReq, c.ClientIP())
 
-	sourceAccount, err := a.accounts.GetAccountByAccountId(c, uid, accountId)
-
-	if err != nil {
-		if !errs.IsCustomError(err) {
-			log.Errorf(c, "[transactions.TransactionQuickAddHandler] failed to get source account \"id:%d\" for user \"uid:%d\", because %s", accountId, uid, err.Error())
-		}
-
-		return nil, errs.Or(err, errs.ErrOperationFailed)
-	}
-
 	transactionEditable := user.CanEditTransactionByTransactionTime(transaction.TransactionTime, clientTimezone, sourceAccount, nil)
 
 	if !transactionEditable {
 		return nil, errs.ErrCannotCreateTransactionWithThisTransactionTime
 	}
 
-	err = a.transactions.CreateTransaction(c, transaction, nil, nil)
+	err = a.transactions.CreateTransaction(c, transaction, tagIds, nil)
 
 	if err != nil {
 		log.Errorf(c, "[transactions.TransactionQuickAddHandler] failed to create transaction \"id:%d\" for user \"uid:%d\", because %s", transaction.TransactionId, uid, err.Error())
 		return nil, errs.Or(err, errs.ErrOperationFailed)
 	}
 
-	log.Infof(c, "[transactions.TransactionQuickAddHandler] user \"uid:%d\" has created a new quick-add transaction \"id:%d\" (merchant=%s, category=%d) successfully", uid, transaction.TransactionId, quickAddReq.Merchant, categoryId)
+	log.Infof(c, "[transactions.TransactionQuickAddHandler] user \"uid:%d\" has created a new quick-add transaction \"id:%d\" (merchant=%s, category=%d) successfully", uid, transaction.TransactionId, parsedInput.Name, categoryId)
 
 	// Look up category name for the response
 	categoryName := ""
@@ -1576,6 +1605,149 @@ func (a *TransactionsApi) TransactionQuickAddHandler(c *core.WebContext) (any, *
 		TransactionInfoResponse: transactionResp,
 		CategoryName:            categoryName,
 	}, nil
+}
+
+// quick add tags each transaction for the categoriser on the NAS, which removes the tag once it has
+// cleaned the description and filled in a missing category. Tags that do not exist are skipped.
+const quickAddPendingAITagName = "needs-ai"
+const quickAddUnconvertedTagName = "fx-unconverted"
+
+// getQuickAddTagIds returns the ids of the named tags that exist for the user
+func (a *TransactionsApi) getQuickAddTagIds(c *core.WebContext, uid int64, tagNames []string) []int64 {
+	tags, err := a.transactionTags.GetAllTagsByUid(c, uid)
+
+	if err != nil {
+		log.Warnf(c, "[transactions.getQuickAddTagIds] failed to get tags for user \"uid:%d\", because %s", uid, err.Error())
+		return nil
+	}
+
+	tagIds := make([]int64, 0, len(tagNames))
+
+	for _, tag := range tags {
+		if slices.Contains(tagNames, tag.Name) && !tag.Hidden {
+			tagIds = append(tagIds, tag.TagId)
+		}
+	}
+
+	return tagIds
+}
+
+// quickAddDefaultCurrency is assumed when a quick add amount names no currency, since every
+// shortcut posting to quick add reads Norwegian bank notifications
+const quickAddDefaultCurrency = "NOK"
+
+var quickAddCurrencySymbols = map[string]string{
+	"€":  "EUR",
+	"$":  "USD",
+	"£":  "GBP",
+	"kr": "NOK",
+}
+
+// matches a trailing "<currency> <amount>" such as "€ 29,05", "kr 1 537,20" or "USD 3,08"
+var quickAddAmountWithCurrencyPattern = regexp.MustCompile(`(?:^|[\s:])(€|\$|£|kr|[A-Z]{3}) ?(\d[\d .,]*)$`)
+
+// quickAddInput is what parseQuickAddInput reads out of the raw notification text a shortcut posts
+type quickAddInput struct {
+	Name               string
+	Description        string
+	Currency           string
+	Amount             float64
+	OriginalAmountText string
+}
+
+// parseQuickAddInput splits a raw bank notification into merchant name, a "Merchant, City"
+// description, and the amount with its currency. Wallet notifications arrive as
+// "<merchant>  <city>, <region><account name>\n<currency> <amount>", Bank Norwegian ones as
+// "<merchant>: <currency> <amount>" when the purchase was not in NOK.
+func parseQuickAddInput(merchant string, amount string, accountName string) quickAddInput {
+	merchant = strings.TrimSpace(strings.ReplaceAll(merchant, " ", " "))
+	amount = strings.TrimSpace(strings.ReplaceAll(amount, " ", " "))
+	firstLine, _, _ := strings.Cut(merchant, "\n")
+
+	result := quickAddInput{
+		Currency: quickAddDefaultCurrency,
+	}
+
+	amountNumber := amount
+
+	for _, text := range []string{amount, merchant} {
+		lines := strings.Split(text, "\n")
+		lastLine := strings.TrimSpace(lines[len(lines)-1])
+		match := quickAddAmountWithCurrencyPattern.FindStringSubmatchIndex(lastLine)
+
+		if match == nil {
+			continue
+		}
+
+		currencySymbol := lastLine[match[2]:match[3]]
+		amountNumber = strings.TrimSpace(lastLine[match[4]:match[5]])
+
+		if code, exists := quickAddCurrencySymbols[currencySymbol]; exists {
+			result.Currency = code
+		} else {
+			result.Currency = currencySymbol
+		}
+
+		if result.Currency != quickAddDefaultCurrency {
+			result.OriginalAmountText = currencySymbol + " " + amountNumber
+		}
+
+		// a Bank Norwegian foreign purchase carries the amount on the merchant line itself
+		if len(lines) == 1 && strings.HasPrefix(firstLine, lastLine) && match[2] > 0 {
+			firstLine = strings.TrimRight(lastLine[:match[2]], " :")
+		}
+
+		break
+	}
+
+	result.Amount = parseAmountString(amountNumber)
+
+	firstLine = strings.TrimSpace(strings.TrimSuffix(firstLine, accountName))
+	name, location, _ := strings.Cut(firstLine, "  ")
+	result.Name = strings.TrimSpace(name)
+	result.Description = result.Name
+
+	if city, _, _ := strings.Cut(location, ","); strings.TrimSpace(city) != "" {
+		result.Description = result.Name + ", " + strings.TrimSpace(city)
+	}
+
+	return result
+}
+
+// convertQuickAddAmount converts an amount between currencies through the base currency of the
+// latest exchange rates, returning false when either currency has no rate
+func convertQuickAddAmount(amount float64, fromCurrency string, toCurrency string, rates *models.LatestExchangeRateResponse) (float64, bool) {
+	if fromCurrency == toCurrency {
+		return amount, true
+	}
+
+	if rates == nil {
+		return 0, false
+	}
+
+	rateOf := func(currency string) (float64, bool) {
+		if currency == rates.BaseCurrency {
+			return 1, true
+		}
+
+		for _, exchangeRate := range rates.ExchangeRates {
+			if exchangeRate.Currency == currency {
+				rate, err := strconv.ParseFloat(exchangeRate.Rate, 64)
+				return rate, err == nil && rate > 0
+			}
+		}
+
+		return 0, false
+	}
+
+	fromRate, fromOk := rateOf(fromCurrency)
+	toRate, toOk := rateOf(toCurrency)
+
+	if !fromOk || !toOk {
+		return 0, false
+	}
+
+	return amount / fromRate * toRate, true
 }
 
 // parseAmountString cleans a raw amount string (strips currency symbols, handles comma decimals)
@@ -1681,7 +1853,8 @@ func (a *TransactionsApi) TransactionModifyHandler(c *core.WebContext) (any, *er
 	if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE && transactionModifyReq.CategoryId != 0 {
 		log.Warnf(c, "[transactions.TransactionModifyHandler] balance modification transaction cannot set category id")
 		return nil, errs.ErrBalanceModificationTransactionCannotSetCategory
-	} else if transaction.Type != models.TRANSACTION_DB_TYPE_MODIFY_BALANCE && transactionModifyReq.CategoryId == 0 {
+	} else if transaction.Type != models.TRANSACTION_DB_TYPE_MODIFY_BALANCE && transactionModifyReq.CategoryId == 0 && transaction.CategoryId != 0 {
+		// quick add saves uncategorised transactions, which stay editable until a category is picked
 		log.Warnf(c, "[transactions.TransactionModifyHandler] non-balance modification transaction must set category id")
 		return nil, errs.ErrIncompleteOrIncorrectSubmission
 	}

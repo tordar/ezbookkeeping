@@ -424,20 +424,6 @@ max_user_avatar_size = 1048576
 # 17: Generate API Token
 default_feature_restrictions =
 
-[bank_integration]
-# Set to true to enable bank integration via Enable Banking (https://enablebanking.com)
-enable_bank_integration = true
-# Enable Banking API base URL (default https://api.enablebanking.com)
-enablebanking_api_url = https://api.enablebanking.com
-# Application ID from Enable Banking Control Panel (leave empty if not using bank integration)
-enablebanking_app_id =
-# Path to PEM-encoded RSA private key file (relative to working directory), or use enablebanking_private_key for inline key
-enablebanking_private_key_path =
-# PEM-encoded RSA private key (alternative to enablebanking_private_key_path)
-enablebanking_private_key =
-# OAuth2 redirect URI for Enable Banking (e.g. ngrok or your public callback URL). If set, used as redirect_url when starting auth; otherwise root_url + /api/bank_integration/callback
-enablebanking_callback_url =
-
 [data]
 # Set to true to allow users to export their data
 enable_export = true

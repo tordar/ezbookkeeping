@@ -14,7 +14,6 @@ import UnlockPage from '@/views/desktop/UnlockPage.vue';
 import HomePage from '@/views/desktop/HomePage.vue';
 
 import TransactionListPage from '@/views/desktop/transactions/ListPage.vue';
-import NewTransactionsPage from '@/views/desktop/transactions/NewTransactionsPage.vue';
 
 import StatisticsTransactionPage from '@/views/desktop/statistics/TransactionPage.vue';
 
@@ -37,7 +36,6 @@ import UserBasicSettingPage from '@/views/desktop/users/UserBasicSettingPage.vue
 import UserSecuritySettingPage from '@/views/desktop/users/UserSecuritySettingPage.vue';
 import TwoFactorAuthPage from '@/views/desktop/users/TwoFactorAuthPage.vue';
 import DataManagementPage from '@/views/desktop/users/DataManagementPage.vue';
-import BankIntegrationPage from '@/views/desktop/users/BankIntegrationPage.vue';
 import PreferencesSettingsPage from '@/views/desktop/settings/PreferencesSettingsPage.vue';
 import ApplicationLockPage from '@/views/desktop/settings/ApplicationLockPage.vue';
 import StatisticsSettingPage from '@/views/desktop/settings/StatisticsSettingPage.vue';
@@ -126,11 +124,6 @@ const router = createRouter({
                 initKeyword: route.query['keyword'],
                 initMatchMode: route.query['matchMode']
             })
-        },
-        {
-            path: '/transaction/new',
-            component: NewTransactionsPage,
-            beforeEnter: checkLogin
         },
         {
             path: '/statistics/transaction',
@@ -224,11 +217,6 @@ const router = createRouter({
                 {
                     path: '/settings/user/data_management',
                     component: DataManagementPage,
-                    beforeEnter: checkLogin
-                },
-                {
-                    path: '/settings/user/bank_integration',
-                    component: BankIntegrationPage,
                     beforeEnter: checkLogin
                 },
                 {

@@ -66,12 +66,6 @@
                     <span class="nav-item-title">{{ tt('Data Management') }}</span>
                 </router-link>
             </li>
-            <li class="nav-link">
-                <router-link to="/settings/user/bank_integration">
-                    <v-icon class="nav-item-icon" :icon="mdiBankOutline"/>
-                    <span class="nav-item-title">{{ tt('Bank Integration') }}</span>
-                </router-link>
-            </li>
 
             <li class="nav-section-title">
                 <div class="title-wrapper">
@@ -150,7 +144,6 @@ import {
     mdiClipboardTextClockOutline,
     mdiShapePlusOutline,
     mdiDatabaseCogOutline,
-    mdiBankOutline,
     mdiCogOutline,
     mdiLockOpenOutline,
     mdiChartPieOutline,

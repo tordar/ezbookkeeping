@@ -55,17 +55,6 @@
                                     </v-btn>
                                 </router-link>
 
-                                <router-link to="/transaction/new"
-                                             :aria-current="isTopNavigationActive('/transaction/new') ? 'page' : undefined">
-                                    <v-btn class="top-navigation-button ms-1" density="comfortable" variant="text"
-                                           :aria-label="tt('New transactions')" :icon="true"
-                                           :active="isTopNavigationActive('/transaction/new')"
-                                           :color="isTopNavigationActive('/transaction/new') ? 'primary' : 'default'">
-                                        <v-icon :icon="isTopNavigationActive('/transaction/new') ? mdiInbox : mdiInboxOutline" size="24" />
-                                        <v-tooltip activator="parent">{{ tt('New transactions') }}</v-tooltip>
-                                    </v-btn>
-                                </router-link>
-
                                 <router-link to="/statistics/transaction"
                                              :aria-current="isTopNavigationActive('/statistics/transaction') ? 'page' : undefined">
                                     <v-btn class="top-navigation-button ms-1" density="comfortable" variant="text"
@@ -217,8 +206,6 @@ import {
     mdiHomeOutline,
     mdiListBox,
     mdiListBoxOutline,
-    mdiInbox,
-    mdiInboxOutline,
     mdiCreditCard,
     mdiCreditCardOutline,
     mdiChartPie,
