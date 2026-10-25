@@ -4,8 +4,12 @@
 quick_add tags every transaction it creates with "needs-ai". This script picks those up, asks
 Claude (through `claude -p`, so it runs on the Claude subscription the container is logged in
 with) for a "Merchant, City" description and, for uncategorised ones, a category, then writes
-the result back and removes the tag. Transactions tagged "fx-unconverted" were in a currency the
-ECB publishes no rate for; their amount is converted here from open.er-api.com instead.
+the result back and removes the tag.
+
+Transactions tagged "fx-unconverted" were saved at face value because quick_add could not convert
+them: the currency symbol was ambiguous ("$", "¥", "Rs") or the ECB has no rate for it. Claude
+works out the currency from where the purchase and the user's recent purchases were made, and the
+amount is converted at the open.er-api.com rate.
 
     categoriser.py --loop                 run forever, every EZB_INTERVAL seconds
     categoriser.py --once                 process the pending queue once
@@ -40,9 +44,10 @@ EZB_TOKEN = os.environ.get("EZB_TOKEN", "")
 UTC_OFFSET = os.environ.get("EZB_UTC_OFFSET", "60")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "haiku")
 
-# the original foreign amount quick_add keeps at the end of a description, e.g. "(€ 7,21)"
-ORIGINAL_AMOUNT = re.compile(r"\((€|\$|£|[A-Z]{3}) ([\d .,]+)\)$")
-CURRENCY_SYMBOLS = {"€": "EUR", "$": "USD", "£": "GBP"}
+CONTEXT_COUNT = 60
+
+# the original foreign amount quick_add keeps at the end of a description, e.g. "(€ 7,21)" or "(Rs 1 250,00)"
+ORIGINAL_AMOUNT = re.compile(r"\(([^\d()]+?) ?(\d[\d .,]*)\)$")
 
 # descriptions written by quick_add before it learnt to clean them
 MESSY_DESCRIPTION = re.compile(r"Bank Norwegian\n|^[^:\n]+: [A-Z]{3} [\d .,]+$")
@@ -59,6 +64,37 @@ For every transaction, return a clean description:
 - If a description is already clean, return it unchanged.
 
 When needsCategory is true, also pick the category: exactly one name from the category list, or null when you cannot tell. The user's own past transactions are the strongest signal. When needsCategory is false, return null for category."""
+
+CURRENCY_SYSTEM_PROMPT = """You work out which currency a card purchase was made in, for a Norwegian person who is travelling.
+
+Each purchase has its description, which ends with the original amount as the bank notification showed it, e.g. "(Rs 1 250,00)" or "($ 12,00)". The symbol alone was not enough to tell the currency.
+
+Decide the ISO 4217 code from, in order of strength:
+1. The city or country in the description.
+2. Where the user's recent purchases were made around the same date (listed with their dates, newest first). Someone who has been paying in Kathmandu for days is most likely still in Nepal.
+3. The merchant: an international online service (AWS, Netflix, Apple, Steam) charging "$" is usually USD wherever the user is.
+
+"Rs" or "रू" is NPR in Nepal and INR in India; "$" may be USD, SGD, AUD, HKD, NZD, CAD and so on; "¥" is JPY or CNY. Return null when the evidence does not point clearly to one currency."""
+
+CURRENCY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "currency": {"type": ["string", "null"]},
+                },
+                "required": ["id", "currency"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["items"],
+    "additionalProperties": False,
+}
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -169,10 +205,15 @@ def ask_claude(items, categories, examples):
         "Transactions to process:\n" + json.dumps(items, ensure_ascii=False, indent=1),
     ])
 
+    return run_claude(prompt, SYSTEM_PROMPT, RESPONSE_SCHEMA)
+
+
+def run_claude(prompt, system_prompt, schema):
+    """Runs claude -p without tools and returns its answer keyed by item id."""
     result = subprocess.run(
         ["claude", "-p", "--model", CLAUDE_MODEL, "--tools", "", "--strict-mcp-config",
          "--no-session-persistence", "--output-format", "json",
-         "--system-prompt", SYSTEM_PROMPT, "--json-schema", json.dumps(RESPONSE_SCHEMA)],
+         "--system-prompt", system_prompt, "--json-schema", json.dumps(schema)],
         input=prompt, capture_output=True, text=True, timeout=600,
     )
 
@@ -212,27 +253,75 @@ def modify_transaction(transaction_id, comment=None, category_id=None, amount=No
     api("transactions/modify.json", body=body)
 
 
-def convert_unconverted(transaction, unconverted_tag_id):
-    """Converts an amount the ECB had no rate for, using the original amount in the description."""
-    match = ORIGINAL_AMOUNT.search(transaction.get("comment", ""))
+def parse_amount(text):
+    """Same rules as quick_add's parseAmountString: the later of "." and "," is the decimal
+    separator, and a lone separator followed by exactly three digits is a thousands separator."""
+    text = re.sub(r"[^\d.,-]", "", text)
+    last_dot, last_comma = text.rfind("."), text.rfind(",")
 
-    if not match:
-        log(f"{transaction['id']}: no original amount in {transaction.get('comment')!r}, leaving it tagged")
+    if last_dot >= 0 and last_comma >= 0:
+        thousands = "." if last_comma > last_dot else ","
+        text = text.replace(thousands, "").replace(",", ".")
+    elif max(last_dot, last_comma) >= 0:
+        separator = text[max(last_dot, last_comma)]
+
+        if text.count(separator) > 1 or len(text) - max(last_dot, last_comma) - 1 == 3:
+            text = text.replace(separator, "")
+        else:
+            text = text.replace(",", ".")
+
+    return float(text)
+
+
+def resolve_unconverted(transactions, unconverted_tag_id):
+    """Works out the currency of purchases quick_add could not convert, then converts them."""
+    items = []
+
+    for transaction in transactions:
+        if not ORIGINAL_AMOUNT.search(transaction.get("comment", "")):
+            log(f"{transaction['id']}: no original amount in {transaction.get('comment')!r}, leaving it tagged")
+            continue
+
+        items.append({
+            "id": transaction["id"],
+            "date": time.strftime("%Y-%m-%d %H:%M", time.gmtime(transaction["time"] + transaction["utcOffset"] * 60)),
+            "description": transaction["comment"],
+        })
+
+    if not items:
         return
 
-    currency = CURRENCY_SYMBOLS.get(match.group(1), match.group(1))
-    original_amount = float(match.group(2).replace(" ", "").replace(".", "").replace(",", "."))
+    pending_ids = {item["id"] for item in items}
+    recent = [
+        f"{time.strftime('%Y-%m-%d', time.gmtime(t['time']))}  {t.get('comment', '')}"
+        for t in list_transactions({}, limit=CONTEXT_COUNT)
+        if t["id"] not in pending_ids and t.get("comment")
+    ]
+
+    prompt = "\n\n".join([
+        "Recent purchases (newest first):\n" + "\n".join(recent),
+        "Purchases to work out the currency for:\n" + json.dumps(items, ensure_ascii=False, indent=1),
+    ])
+    answers = run_claude(prompt, CURRENCY_SYSTEM_PROMPT, CURRENCY_SCHEMA)
 
     with urllib.request.urlopen("https://open.er-api.com/v6/latest/NOK", timeout=30) as response:
         rates = json.load(response)["rates"]
 
-    if currency not in rates:
-        log(f"{transaction['id']}: no rate for {currency} either, leaving it tagged")
-        return
+    for item in items:
+        currency = (answers.get(item["id"], {}).get("currency") or "").upper()
 
-    amount = round(original_amount / rates[currency] * 100)
-    modify_transaction(transaction["id"], amount=amount, remove_tag_ids=(unconverted_tag_id,))
-    log(f"{transaction['id']}: converted {currency} {original_amount} to {amount / 100:.2f} NOK")
+        if currency not in rates:
+            log(f"{item['id']}: could not tell the currency of {item['description']!r} (got {currency or 'nothing'}), leaving it tagged")
+            continue
+
+        match = ORIGINAL_AMOUNT.search(item["description"])
+        original_text = match.group(2).strip()
+        amount = round(parse_amount(original_text) / rates[currency] * 100)
+        # name the currency that was decided on, so a wrong guess is easy to spot later
+        description = item["description"][:match.start()] + f"({currency} {original_text})"
+
+        modify_transaction(item["id"], comment=description, amount=amount, remove_tag_ids=(unconverted_tag_id,))
+        log(f"{item['id']}: {item['description']!r} is {currency}, converted to {amount / 100:.2f} NOK")
 
 
 def process_pending():
@@ -241,8 +330,7 @@ def process_pending():
     unconverted_tag_id = tag_ids.get(UNCONVERTED_TAG)
 
     if unconverted_tag_id:
-        for transaction in list_transactions({"tag_filter": f"0:{unconverted_tag_id}"}):
-            convert_unconverted(transaction, unconverted_tag_id)
+        resolve_unconverted(list_transactions({"tag_filter": f"0:{unconverted_tag_id}"}), unconverted_tag_id)
 
     if not pending_tag_id:
         return

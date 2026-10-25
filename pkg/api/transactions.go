@@ -1636,15 +1636,29 @@ func (a *TransactionsApi) getQuickAddTagIds(c *core.WebContext, uid int64, tagNa
 // shortcut posting to quick add reads Norwegian bank notifications
 const quickAddDefaultCurrency = "NOK"
 
+// symbols that name exactly one currency. "kr" is taken as NOK because Swedish and Danish
+// purchases arrive with their ISO codes.
 var quickAddCurrencySymbols = map[string]string{
 	"€":  "EUR",
-	"$":  "USD",
 	"£":  "GBP",
+	"฿":  "THB",
+	"₫":  "VND",
+	"₭":  "LAK",
+	"៛":  "KHR",
+	"₹":  "INR",
+	"₱":  "PHP",
+	"₩":  "KRW",
+	"Rp": "IDR",
+	"RM": "MYR",
 	"kr": "NOK",
 }
 
-// matches a trailing "<currency> <amount>" such as "€ 29,05", "kr 1 537,20" or "USD 3,08"
-var quickAddAmountWithCurrencyPattern = regexp.MustCompile(`(?:^|[\s:])(€|\$|£|kr|[A-Z]{3}) ?(\d[\d .,]*)$`)
+// matches a trailing "<currency> <amount>" such as "€ 29,05", "kr 1 537,20", "USD 3,08" or "रू 450".
+// A symbol not in quickAddCurrencySymbols ("$", "¥", "Rs" and the like) leaves the currency
+// unknown, for the categoriser to work out from where the purchase was made.
+var quickAddAmountWithCurrencyPattern = regexp.MustCompile(`(?:^|[\s:])(\p{Sc}|kr|Rs\.?|रू|Rp|RM|[A-Z]{3}) ?(\d[\d .,]*)$`)
+
+var quickAddIsoCurrencyCodePattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // quickAddInput is what parseQuickAddInput reads out of the raw notification text a shortcut posts
 type quickAddInput struct {
@@ -1684,8 +1698,10 @@ func parseQuickAddInput(merchant string, amount string, accountName string) quic
 
 		if code, exists := quickAddCurrencySymbols[currencySymbol]; exists {
 			result.Currency = code
-		} else {
+		} else if quickAddIsoCurrencyCodePattern.MatchString(currencySymbol) {
 			result.Currency = currencySymbol
+		} else {
+			result.Currency = ""
 		}
 
 		if result.Currency != quickAddDefaultCurrency {
@@ -1750,8 +1766,10 @@ func convertQuickAddAmount(amount float64, fromCurrency string, toCurrency strin
 	return amount / fromRate * toRate, true
 }
 
-// parseAmountString cleans a raw amount string (strips currency symbols, handles comma decimals)
-// and returns the parsed float value, or 0 if parsing fails.
+// parseAmountString cleans a raw amount string (strips currency symbols and spaces) and returns
+// the parsed float value, or 0 if parsing fails. With both "." and "," present the later one is
+// the decimal separator; a lone separator is a thousands separator when it repeats or is followed
+// by exactly three digits ("1,250" or "1.250.000"), and a decimal separator otherwise ("3,08").
 func parseAmountString(amountStr string) float64 {
 	cleanAmount := strings.Map(func(r rune) rune {
 		if (r >= '0' && r <= '9') || r == '.' || r == ',' || r == '-' {
@@ -1760,11 +1778,26 @@ func parseAmountString(amountStr string) float64 {
 		return -1
 	}, amountStr)
 
-	if strings.Contains(cleanAmount, ",") {
-		if strings.Contains(cleanAmount, ".") {
-			cleanAmount = strings.ReplaceAll(cleanAmount, ".", "")
+	lastDot := strings.LastIndex(cleanAmount, ".")
+	lastComma := strings.LastIndex(cleanAmount, ",")
+
+	if lastDot >= 0 && lastComma >= 0 {
+		thousandsSeparator := "."
+
+		if lastComma < lastDot {
+			thousandsSeparator = ","
 		}
+
+		cleanAmount = strings.ReplaceAll(cleanAmount, thousandsSeparator, "")
 		cleanAmount = strings.Replace(cleanAmount, ",", ".", 1)
+	} else if separator := max(lastDot, lastComma); separator >= 0 {
+		separatorText := cleanAmount[separator : separator+1]
+
+		if strings.Count(cleanAmount, separatorText) > 1 || len(cleanAmount)-separator-1 == 3 {
+			cleanAmount = strings.ReplaceAll(cleanAmount, separatorText, "")
+		} else {
+			cleanAmount = strings.Replace(cleanAmount, ",", ".", 1)
+		}
 	}
 
 	parsed, err := strconv.ParseFloat(cleanAmount, 64)

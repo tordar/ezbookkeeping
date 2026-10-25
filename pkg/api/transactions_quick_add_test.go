@@ -87,6 +87,39 @@ func TestParseQuickAddInput_PlainNumbers(t *testing.T) {
 	assert.Equal(t, 42.5, parsed.Amount)
 }
 
+func TestParseQuickAddInput_UnambiguousSymbols(t *testing.T) {
+	for symbol, currency := range map[string]string{"฿": "THB", "₫": "VND", "₭": "LAK", "៛": "KHR", "₹": "INR", "Rp": "IDR", "RM": "MYR"} {
+		parsed := parseQuickAddInput("Shop  Somewhere, RegionBank Norwegian\n"+symbol+" 450,00", symbol+" 450,00", "Bank Norwegian")
+
+		assert.Equal(t, currency, parsed.Currency, symbol)
+		assert.Equal(t, 450.0, parsed.Amount, symbol)
+		assert.Equal(t, symbol+" 450,00", parsed.OriginalAmountText, symbol)
+	}
+}
+
+func TestParseQuickAddInput_AmbiguousSymbolsLeaveCurrencyUnknown(t *testing.T) {
+	// "$" and "¥" cover several currencies and "Rs" is used for both Nepalese and Indian rupees,
+	// so the categoriser decides from context instead
+	for _, symbol := range []string{"$", "¥", "Rs", "Rs.", "रू", "₨"} {
+		parsed := parseQuickAddInput("Thamel Momo  Kathmandu, BagmatiBank Norwegian\n"+symbol+" 1 250,00", symbol+" 1 250,00", "Bank Norwegian")
+
+		assert.Equal(t, "", parsed.Currency, symbol)
+		assert.Equal(t, 1250.0, parsed.Amount, symbol)
+		assert.Equal(t, symbol+" 1 250,00", parsed.OriginalAmountText, symbol)
+		assert.Equal(t, "Thamel Momo, Kathmandu", parsed.Description, symbol)
+	}
+}
+
+func TestParseAmountString_Separators(t *testing.T) {
+	assert.Equal(t, 1887.0, parseAmountString("1 887,00"))
+	assert.Equal(t, 1250.5, parseAmountString("1,250.50"))
+	assert.Equal(t, 1250.5, parseAmountString("1.250,50"))
+	assert.Equal(t, 1250.0, parseAmountString("1,250"))
+	assert.Equal(t, 1250000.0, parseAmountString("1,250,000"))
+	assert.Equal(t, 3.08, parseAmountString("3,08"))
+	assert.Equal(t, 42.5, parseAmountString("42.5"))
+}
+
 func TestConvertQuickAddAmount_ThroughEuroBase(t *testing.T) {
 	rates := &models.LatestExchangeRateResponse{
 		BaseCurrency: "EUR",
