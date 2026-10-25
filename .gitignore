@@ -172,3 +172,6 @@ conf/*.local.ini
 /data/
 /storage/
 /log/
+
+# Python bytecode
+__pycache__/
