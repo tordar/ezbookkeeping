@@ -1,4 +1,13 @@
 /** Replacing the default style of framework7 **/
+/** iOS 27 blurs the top edge of installed web apps (~40pt below the status bar), so push content clear of it (mayswind/ezbookkeeping#729) **/
+@media (display-mode: standalone) {
+    @supports (top: env(safe-area-inset-top)) {
+        html.ios:root {
+            --f7-safe-area-top: calc(env(safe-area-inset-top) + 24px);
+        }
+    }
+}
+
 .ios .navbar-inner {
     padding-top: calc(8px + var(--f7-safe-area-top));
     padding-bottom: 8px;
