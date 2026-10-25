@@ -784,6 +784,21 @@ watch(lgAndUp, (newValue) => {
     }
 });
 
+watch([hideAccountCategoriesWithoutAccounts, allCategorizedAccountsMap], () => {
+    const activeCategoryAccounts = allCategorizedAccountsMap.value[activeAccountCategoryType.value];
+
+    if (!hideAccountCategoriesWithoutAccounts.value || (activeCategoryAccounts && activeCategoryAccounts.accounts.length > 0)) {
+        return;
+    }
+
+    const firstCategoryWithAccounts = AccountCategory.values(customAccountCategoryOrder.value)
+        .find(category => (allCategorizedAccountsMap.value[category.type]?.accounts.length ?? 0) > 0);
+
+    if (firstCategoryWithAccounts) {
+        activeAccountCategoryType.value = firstCategoryWithAccounts.type;
+    }
+}, { immediate: true });
+
 reload(false);
 </script>
 
