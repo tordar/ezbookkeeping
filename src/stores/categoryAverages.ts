@@ -11,7 +11,7 @@ import { TimezoneTypeForStatistics } from '@/core/timezone.ts';
 
 import type { TransactionStatisticTrendsResponseItem } from '@/models/transaction.ts';
 
-import { isNumber } from '@/lib/common.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import { getCurrentDateTime, getYearMonthDayDateTime } from '@/lib/datetime.ts';
 import {
     getBaselineYearMonths,
@@ -86,13 +86,13 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             return amount;
         }
 
-        const exchangedAmount = exchangeRatesStore.getExchangedAmount(amount, account.currency, defaultCurrency);
+        const exchangedAmount = exchangeRatesStore.getExchangedAmount(parseBigDecimal(amount), account.currency, defaultCurrency);
 
-        if (!isNumber(exchangedAmount)) {
+        if (!exchangedAmount || !exchangedAmount.isFinite()) {
             return null;
         }
 
-        return Math.trunc(exchangedAmount);
+        return exchangedAmount.truncate().toSafeIntegerNumber();
     }
 
     function loadCategoryAverages({ force }: { force: boolean }): Promise<CategoryAveragesResult> {

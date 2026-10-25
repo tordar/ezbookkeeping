@@ -4,8 +4,8 @@
             <f7-nav-left :class="{ 'disabled': loading }" :back-link="tt('Back')"></f7-nav-left>
             <f7-nav-title :title="tt(title)"></f7-nav-title>
             <f7-nav-right :class="{ 'navbar-compact-icons': true, 'disabled': loading }" v-if="mode !== TransactionEditPageMode.View || transaction.type !== TransactionType.ModifyBalance">
-                <f7-link icon-f7="ellipsis" @click="showMoreActionSheet = true"></f7-link>
-                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': inputIsEmpty || submitting || recognizing }" @click="save(AfterSaveAction.GoBack)" v-if="mode !== TransactionEditPageMode.View"></f7-link>
+                <f7-link icon-f7="ellipsis" :aria-label="tt('More')" @click="showMoreActionSheet = true"></f7-link>
+                <f7-link icon-f7="checkmark_alt" :class="{ 'disabled': inputIsEmpty || submitting || recognizing }" :aria-label="tt('Save')" @click="save(AfterSaveAction.GoBack)" v-if="mode !== TransactionEditPageMode.View"></f7-link>
             </f7-nav-right>
         </f7-navbar>
 
@@ -58,6 +58,7 @@
         <f7-list form strong inset dividers class="margin-vertical-half" v-else-if="!loading">
             <f7-list-input
                 type="text"
+                autocomplete="off"
                 clear-button
                 :label="tt('Template Name')"
                 :placeholder="tt('Template Name')"
@@ -70,7 +71,7 @@
                 link="#" no-chevron
                 :class="sourceAmountClass"
                 :header="sourceAmountTitle"
-                :title="getDisplayAmount(transaction.sourceAmount, transaction.hideAmount, sourceAccountCurrency)"
+                :title="getDisplayAmount(parseBigDecimal(transaction.sourceAmount), transaction.hideAmount, sourceAccountCurrency)"
                 @click="showSourceAmountSheet = true"
             >
                 <number-pad-sheet :min-value="TRANSACTION_MIN_AMOUNT"
@@ -86,7 +87,7 @@
                 link="#" no-chevron
                 :class="destinationAmountClass"
                 :header="transferInAmountTitle"
-                :title="getDisplayAmount(transaction.destinationAmount, transaction.hideAmount, destinationAccountCurrency)"
+                :title="getDisplayAmount(parseBigDecimal(transaction.destinationAmount), transaction.hideAmount, destinationAccountCurrency)"
                 @click="showDestinationAmountSheet = true"
                 v-if="transaction.type === TransactionType.Transfer"
             >
@@ -118,10 +119,10 @@
                     </div>
                 </template>
                 <tree-view-selection-sheet primary-key-field="id" primary-title-field="name"
-                                           primary-icon-field="icon" primary-icon-type="category" primary-color-field="color"
+                                           primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="category" primary-color-field="color"
                                            primary-hidden-field="hidden" primary-sub-items-field="subCategories"
                                            secondary-key-field="id" secondary-value-field="id" secondary-title-field="name"
-                                           secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
+                                           secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
                                            :items="allCategories[CategoryType.Expense]"
@@ -150,10 +151,10 @@
                     </div>
                 </template>
                 <tree-view-selection-sheet primary-key-field="id" primary-title-field="name"
-                                           primary-icon-field="icon" primary-icon-type="category" primary-color-field="color"
+                                           primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="category" primary-color-field="color"
                                            primary-hidden-field="hidden" primary-sub-items-field="subCategories"
                                            secondary-key-field="id" secondary-value-field="id" secondary-title-field="name"
-                                           secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
+                                           secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
                                            :items="allCategories[CategoryType.Income]"
@@ -182,10 +183,10 @@
                     </div>
                 </template>
                 <tree-view-selection-sheet primary-key-field="id" primary-title-field="name"
-                                           primary-icon-field="icon" primary-icon-type="category" primary-color-field="color"
+                                           primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="category" primary-color-field="color"
                                            primary-hidden-field="hidden" primary-sub-items-field="subCategories"
                                            secondary-key-field="id" secondary-value-field="id" secondary-title-field="name"
-                                           secondary-icon-field="icon" secondary-icon-type="category" secondary-color-field="color"
+                                           secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="category" secondary-color-field="color"
                                            secondary-hidden-field="hidden"
                                            :enable-filter="true" :filter-placeholder="tt('Find category')" :filter-no-items-text="tt('No available category')"
                                            :items="allCategories[CategoryType.Transfer]"
@@ -204,12 +205,12 @@
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
                                                       primary-title-field="name" primary-footer-field="displayBalance"
-                                                      primary-icon-field="icon" primary-icon-type="account"
+                                                      primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="account"
                                                       primary-sub-items-field="accounts"
                                                       :primary-title-i18n="true"
                                                       secondary-key-field="id" secondary-value-field="id"
                                                       secondary-title-field="name" secondary-footer-field="displayBalance"
-                                                      secondary-icon-field="icon" secondary-icon-type="account" secondary-color-field="color"
+                                                      secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="account" secondary-color-field="color"
                                                       :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                       :items="allVisibleCategorizedAccounts"
                                                       v-model:show="showSourceAccountSheet"
@@ -228,12 +229,12 @@
             >
                 <two-column-list-item-selection-sheet primary-key-field="id" primary-value-field="category"
                                                       primary-title-field="name" primary-footer-field="displayBalance"
-                                                      primary-icon-field="icon" primary-icon-type="account"
+                                                      primary-icon-field="icon" primary-icon-type-field="iconType" primary-icon-type="account"
                                                       primary-sub-items-field="accounts"
                                                       :primary-title-i18n="true"
                                                       secondary-key-field="id" secondary-value-field="id"
                                                       secondary-title-field="name" secondary-footer-field="displayBalance"
-                                                      secondary-icon-field="icon" secondary-icon-type="account" secondary-color-field="color"
+                                                      secondary-icon-field="icon" secondary-icon-type-field="iconType" secondary-icon-type="account" secondary-color-field="color"
                                                       :enable-filter="true" :filter-placeholder="tt('Find account')" :filter-no-items-text="tt('No available account')"
                                                       :items="allVisibleCategorizedAccounts"
                                                       v-model:show="showDestinationAccountSheet"
@@ -319,7 +320,7 @@
                     <f7-block class="list-item-custom-title no-padding no-margin">
                         <span>{{ `(${transactionDisplayTimezone})` }}</span>
                         <span class="transaction-edit-timezone-name" v-if="transaction.timeZone || transaction.timeZone === ''">{{ transactionDisplayTimezoneName }}</span>
-                        <span class="transaction-edit-timezone-name" v-else-if="!transaction.timeZone && transaction.timeZone !== ''">{{ transactionTimezoneTimeDifference }}</span>
+                        <span class="transaction-edit-timezone-name" v-else-if="pageTypeAndMode?.type === TransactionEditPageType.Transaction && !transaction.timeZone && transaction.timeZone !== ''">{{ transactionTimezoneTimeDifference }}</span>
                     </f7-block>
                 </template>
                 <list-item-selection-popup value-type="item"
@@ -346,7 +347,7 @@
             >
                 <template #title>
                     <f7-block class="list-item-custom-title no-padding no-margin">
-                        <span v-if="transaction.geoLocation">{{ `(${formatCoordinate(transaction.geoLocation, coordinateDisplayType)})` }}</span>
+                        <span v-if="transaction.geoLocation">{{ `(${formatCoordinate(transaction.geoLocation)})` }}</span>
                         <span v-else-if="!transaction.geoLocation">{{ geoLocationStatusInfo }}</span>
                     </f7-block>
                 </template>
@@ -406,7 +407,7 @@
                                 <div class="transaction-picture">
                                     <div class="display-flex justify-content-center align-items-center transaction-picture-control-backdrop"
                                          v-if="mode === TransactionEditPageMode.Add || mode === TransactionEditPageMode.Edit">
-                                        <f7-icon class="picture-control-icon picture-remove-icon" f7="trash" v-if="pictureInfo.pictureId !== removingPictureId"></f7-icon>
+                                        <f7-icon class="picture-control-icon picture-remove-icon" f7="trash" :aria-label="tt('Remove Picture')" v-if="pictureInfo.pictureId !== removingPictureId"></f7-icon>
                                         <f7-preloader color="white" :size="28" v-if="pictureInfo.pictureId === removingPictureId" />
                                     </div>
                                     <image-box style="height: 100%" alt="picture" :src="getTransactionPictureUrl(pictureInfo)">
@@ -418,7 +419,7 @@
                             </swiper-slide>
                             <swiper-slide @click="showOpenPictureDialog" v-if="canAddTransactionPicture">
                                 <div class="display-flex justify-content-center align-items-center transaction-picture transaction-picture-add">
-                                    <f7-icon class="picture-control-icon" f7="plus" v-if="!uploadingPicture"></f7-icon>
+                                    <f7-icon class="picture-control-icon" f7="plus" :aria-label="tt('Add Picture')" v-if="!uploadingPicture"></f7-icon>
                                     <f7-preloader :size="28" v-if="uploadingPicture" />
                                 </div>
                             </swiper-slide>
@@ -431,6 +432,7 @@
                 type="textarea"
                 class="transaction-edit-comment"
                 style="height: auto"
+                autocomplete="off"
                 :class="{ 'readonly': mode === TransactionEditPageMode.View }"
                 :label="transactionDescriptionTitle"
                 :placeholder="mode !== TransactionEditPageMode.View ? tt('Your transaction description (optional)') : ''"
@@ -558,12 +560,12 @@ import type { TransactionPictureInfoBasicResponse } from '@/models/transaction_p
 import { Transaction } from '@/models/transaction.ts';
 
 import { isDefined } from '@/lib/common.ts';
+import { parseBigDecimal } from '@/lib/numeral.ts';
 import {
     getTimezoneOffset,
     getTimezoneOffsetMinutes,
     parseDateTimeFromUnixTimeWithTimezoneOffset
 } from '@/lib/datetime.ts';
-import { formatCoordinate } from '@/lib/coordinate.ts';
 import { generateRandomUUID } from '@/lib/misc.ts';
 import { getTransactionPrimaryCategoryName, getTransactionSecondaryCategoryName } from '@/lib/category.ts';
 import { type SetTransactionOptions } from '@/lib/transaction.ts';
@@ -593,7 +595,8 @@ const {
     formatDateTimeToLongDate,
     formatDateTimeToLongTime,
     formatGregorianTextualYearMonthDayToLongDate,
-    parseAmountFromLocalizedNumerals
+    parseAmountFromLocalizedNumerals,
+    formatCoordinate
 } = useI18n();
 const { showAlert, showConfirm, showCancelableLoading, showToast, routeBackOnError } = useI18nUIComponents();
 
@@ -616,7 +619,6 @@ const {
     currentTimezoneOffsetMinutes,
     defaultCurrency,
     firstDayOfWeek,
-    coordinateDisplayType,
     imageUploadQualityType,
     allTimezones,
     allVisibleAccounts,

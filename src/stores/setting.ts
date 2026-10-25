@@ -147,7 +147,7 @@ export const useSettingsStore = defineStore('settings', () => {
         });
     }
 
-    // Basic Settings
+    // General Settings
     function setTheme(value: string): void {
         updateApplicationSettingsValue('theme', value);
         appSettings.value.theme = value;
@@ -175,6 +175,18 @@ export const useSettingsStore = defineStore('settings', () => {
         updateUserApplicationCloudSettingValue('showAccountBalance', value);
     }
 
+    function setAccountCategoryOrders(value: string): void {
+        updateApplicationSettingsValue('accountCategoryOrders', value);
+        appSettings.value.accountCategoryOrders = value;
+        updateUserApplicationCloudSettingValue('accountCategoryOrders', value);
+    }
+
+    function setChartColors(value: string): void {
+        updateApplicationSettingsValue('chartColors', value);
+        appSettings.value.chartColors = value;
+        updateUserApplicationCloudSettingValue('chartColors', value);
+    }
+
     function setEnableSwipeBack(value: boolean): void {
         updateApplicationSettingsValue('swipeBack', value);
         appSettings.value.swipeBack = value;
@@ -196,13 +208,6 @@ export const useSettingsStore = defineStore('settings', () => {
         appSettings.value.applicationLockWebAuthn = value;
     }
 
-    // General Settings
-    function setChartColors(value: string): void {
-        updateApplicationSettingsValue('chartColors', value);
-        appSettings.value.chartColors = value;
-        updateUserApplicationCloudSettingValue('chartColors', value);
-    }
-
     // Navigation Bar
     function setShowAddTransactionButtonInDesktopNavbar(value: boolean): void {
         updateApplicationSettingsValue('showAddTransactionButtonInDesktopNavbar', value);
@@ -211,6 +216,18 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     // Overview Page
+    function setDesktopOverviewPageLayout(value: string): void {
+        updateApplicationSettingsValue('desktopOverviewPageLayout', value);
+        appSettings.value.desktopOverviewPageLayout = value;
+        updateUserApplicationCloudSettingValue('desktopOverviewPageLayout', value);
+    }
+
+    function setMobileOverviewPageLayout(value: string): void {
+        updateApplicationSettingsValue('mobileOverviewPageLayout', value);
+        appSettings.value.mobileOverviewPageLayout = value;
+        updateUserApplicationCloudSettingValue('mobileOverviewPageLayout', value);
+    }
+
     function setShowAmountInHomePage(value: boolean): void {
         updateApplicationSettingsValue('showAmountInHomePage', value);
         appSettings.value.showAmountInHomePage = value;
@@ -235,6 +252,12 @@ export const useSettingsStore = defineStore('settings', () => {
         updateUserApplicationCloudSettingValue('overviewTransactionCategoryFilterInHomePage', value);
     }
 
+    function setOverviewTransactionTagFilterInHomePage(value: string): void {
+        updateApplicationSettingsValue('overviewTransactionTagFilterInHomePage', value);
+        appSettings.value.overviewTransactionTagFilterInHomePage = value;
+        updateUserApplicationCloudSettingValue('overviewTransactionTagFilterInHomePage', value);
+    }
+
     // Transaction List Page
     function setItemsCountInTransactionListPage(value: number): void {
         updateApplicationSettingsValue('itemsCountInTransactionListPage', value);
@@ -246,6 +269,12 @@ export const useSettingsStore = defineStore('settings', () => {
         updateApplicationSettingsValue('showTotalAmountInTransactionListPage', value);
         appSettings.value.showTotalAmountInTransactionListPage = value;
         updateUserApplicationCloudSettingValue('showTotalAmountInTransactionListPage', value);
+    }
+
+    function setTotalAmountTypeInTransactionListPage(value: number): void {
+        updateApplicationSettingsValue('totalAmountTypeInTransactionListPage', value);
+        appSettings.value.totalAmountTypeInTransactionListPage = value;
+        updateUserApplicationCloudSettingValue('totalAmountTypeInTransactionListPage', value);
     }
 
     function setShowTagInTransactionListPage(value: boolean): void {
@@ -283,6 +312,12 @@ export const useSettingsStore = defineStore('settings', () => {
         updateApplicationSettingsValue('autoGetCurrentGeoLocation', value);
         appSettings.value.autoGetCurrentGeoLocation = value;
         updateUserApplicationCloudSettingValue('autoGetCurrentGeoLocation', value);
+    }
+
+    function setShowSelectedTagsOnTopInMobile(value: boolean): void {
+        updateApplicationSettingsValue('showSelectedTagsOnTopInMobile', value);
+        appSettings.value.showSelectedTagsOnTopInMobile = value;
+        updateUserApplicationCloudSettingValue('showSelectedTagsOnTopInMobile', value);
     }
 
     function setAlwaysShowTransactionPicturesInMobileTransactionEditPage(value: boolean): void {
@@ -352,16 +387,16 @@ export const useSettingsStore = defineStore('settings', () => {
         updateUserApplicationCloudSettingValue('totalAmountExcludeAccountIds', value);
     }
 
-    function setAccountCategoryOrders(value: string): void {
-        updateApplicationSettingsValue('accountCategoryOrders', value);
-        appSettings.value.accountCategoryOrders = value;
-        updateUserApplicationCloudSettingValue('accountCategoryOrders', value);
-    }
-
     function setHideCategoriesWithoutAccounts(value: boolean): void {
         updateApplicationSettingsValue('hideCategoriesWithoutAccounts', value);
         appSettings.value.hideCategoriesWithoutAccounts = value;
         updateUserApplicationCloudSettingValue('hideCategoriesWithoutAccounts', value);
+    }
+
+    function setDefaultCreditCardAmountDisplayTypeInMobile(value: number): void {
+        updateApplicationSettingsValue('defaultCreditCardAmountDisplayTypeInMobile', value);
+        appSettings.value.defaultCreditCardAmountDisplayTypeInMobile = value;
+        updateUserApplicationCloudSettingValue('defaultCreditCardAmountDisplayTypeInMobile', value);
     }
 
     function setReconciliationStatementButtonDefaultDateRangeTypeInDesktop(value: number): void {
@@ -586,29 +621,33 @@ export const useSettingsStore = defineStore('settings', () => {
         accountCategoryDisplayOrders,
         chartColorList,
         // functions
-        // -- Basic Settings
+        // -- General Settings
         setTheme,
         setFontSize,
         setTimeZone,
         setAutoUpdateExchangeRatesData,
         setShowAccountBalance,
+        setAccountCategoryOrders,
+        setChartColors,
         setEnableSwipeBack,
         setEnableAnimate,
         // -- Application Lock
         setEnableApplicationLock,
         setEnableApplicationLockWebAuthn,
-        // -- General Settings
-        setChartColors,
         // -- Navigation Bar
         setShowAddTransactionButtonInDesktopNavbar,
         // -- Overview Page
+        setDesktopOverviewPageLayout,
+        setMobileOverviewPageLayout,
         setShowAmountInHomePage,
         setTimezoneUsedForStatisticsInHomePage,
         setOverviewAccountFilterInHomePage,
         setOverviewTransactionCategoryFilterInHomePage,
+        setOverviewTransactionTagFilterInHomePage,
         // -- Transaction List Page
         setItemsCountInTransactionListPage,
         setShowTotalAmountInTransactionListPage,
+        setTotalAmountTypeInTransactionListPage,
         setShowTagInTransactionListPage,
         setDefaultKeywordMatchModeInTransactionListPage,
         // -- Transaction Edit Page
@@ -616,6 +655,7 @@ export const useSettingsStore = defineStore('settings', () => {
         setQuickAddButtonActionInMobileTransactionEditPage,
         setAutoSaveTransactionDraft,
         setAutoGetCurrentGeoLocation,
+        setShowSelectedTagsOnTopInMobile,
         setAlwaysShowTransactionPicturesInMobileTransactionEditPage,
         setTransactionPictureQuality,
         // -- AI Clipboard Text Recognition
@@ -630,8 +670,8 @@ export const useSettingsStore = defineStore('settings', () => {
         setShowTagInInsightsExplorerPage,
         // -- Account List Page
         setTotalAmountExcludeAccountIds,
-        setAccountCategoryOrders,
         setHideCategoriesWithoutAccounts,
+        setDefaultCreditCardAmountDisplayTypeInMobile,
         setReconciliationStatementButtonDefaultDateRangeTypeInDesktop,
         setReconciliationStatementPageDefaultDateRangeTypeInMobile,
         // -- Exchange Rates Data Page

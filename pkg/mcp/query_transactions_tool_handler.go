@@ -1,7 +1,7 @@
 package mcp
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"reflect"
 	"strings"
 	"time"
@@ -130,7 +130,7 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 	allAccounts, err := services.GetAccountService().GetAllAccountsByUid(c, uid)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get account error, because %s", err.Error())
+		log.Warnf(c, "[query_transactions_tool_handler.Handle] get account error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -147,7 +147,7 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 	allCategories, err := services.GetTransactionCategoryService().GetAllCategoriesByUid(c, uid, 0, -1)
 
 	if err != nil {
-		log.Warnf(c, "[add_transaction.Handle] get transaction category error, because %s", err.Error())
+		log.Warnf(c, "[query_transactions_tool_handler.Handle] get transaction category error, because %s", err.Error())
 		return nil, nil, err
 	}
 
@@ -170,7 +170,7 @@ func (h *mcpQueryTransactionsToolHandler) Handle(c *core.WebContext, callToolReq
 	totalCount, err := services.GetTransactionService().GetTransactionCount(c, uid, maxTransactionTime, minTransactionTime, transactionType, filterCategoryIds, filterAccountIds, nil, false, "", queryTransactionsRequest.Keyword, matchModeType, false)
 
 	if err != nil {
-		log.Errorf(c, "[transactions.TransactionListHandler] failed to get transaction count for user \"uid:%d\", because %s", uid, err.Error())
+		log.Errorf(c, "[query_transactions_tool_handler.Handle] failed to get transaction count for user \"uid:%d\", because %s", uid, err.Error())
 		return nil, nil, err
 	}
 
@@ -216,7 +216,7 @@ func (h *mcpQueryTransactionsToolHandler) createNewMCPQueryTransactionsResponse(
 		} else if transaction.Type == models.TRANSACTION_DB_TYPE_MODIFY_BALANCE {
 			transactionInfo.Type = transactionTypeModifyBalance
 		} else {
-			log.Warnf(c, "[transactions.createNewMCPQueryTransactionsResponse] encountered transaction with unexpected type \"%d\" for transaction \"id:%d\"", transaction.Type, transaction.TransactionId)
+			log.Warnf(c, "[query_transactions_tool_handler.createNewMCPQueryTransactionsResponse] encountered transaction with unexpected type \"%d\" for transaction \"id:%d\"", transaction.Type, transaction.TransactionId)
 			continue
 		}
 

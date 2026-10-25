@@ -234,11 +234,11 @@ export function buildCategoryAverages(options: CategoryAveragesOptions): Categor
 
             for (const item of monthlyTrend.items) {
                 if (isBaseline && baselineMonthCount > 0) {
-                    addAmount(item.categoryId, item.accountId, item.amount, baselineField, baselineMonthCount);
+                    addAmount(item.categoryId, item.accountId, Number(item.amount), baselineField, baselineMonthCount);
                 }
 
                 if (isCurrentMonth && currentMonthField) {
-                    addAmount(item.categoryId, item.accountId, item.amount, currentMonthField, 1);
+                    addAmount(item.categoryId, item.accountId, Number(item.amount), currentMonthField, 1);
                 }
             }
         }

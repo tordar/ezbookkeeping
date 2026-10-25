@@ -221,9 +221,9 @@ func (h *mcpModifyTransactionToolHandler) Handle(c *core.WebContext, callToolReq
 		accountInfo := account.ToAccountInfoResponse()
 
 		if accountInfo.IsAsset {
-			accountBalance = utils.FormatAmount(accountInfo.Balance)
+			accountBalance = utils.FormatAmount(account.Balance)
 		} else if accountInfo.IsLiability {
-			accountBalance = utils.FormatAmount(-accountInfo.Balance)
+			accountBalance = utils.FormatAmount(-account.Balance)
 		}
 	}
 

@@ -298,7 +298,7 @@ func (a *BankIntegrationConnectionsApi) redirectToSettings(c *core.WebContext, s
 	if isMobile {
 		redirectURL = fmt.Sprintf("%s/mobile#!/settings/bank_integration?bank=%s", base, status)
 	} else {
-		redirectURL = fmt.Sprintf("%s/desktop#/user/settings?tab=bankIntegrationSetting&bank=%s", base, status)
+		redirectURL = fmt.Sprintf("%s/desktop#/settings/user/bank_integration?bank=%s", base, status)
 	}
 	if message != "" {
 		redirectURL += "&bank_message=" + url.QueryEscape(message)

@@ -1,66 +1,70 @@
 <template>
-    <v-row>
-        <v-col cols="12">
-            <v-card :title="tt('New transactions')">
-                <v-card-text>
-                    <span class="text-body-1">{{ tt('Incoming bank transactions from the last 48 hours. Categorise to add to your ledger, or dismiss to ignore.') }}</span>
-                </v-card-text>
-                <v-card-text>
-                    <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
-                    <template v-else-if="transactions.length === 0">
-                        <p class="text-body-2 text-medium-emphasis">{{ tt('No new transactions in the last 48 hours.') }}</p>
-                    </template>
-                    <template v-else>
-                        <v-table density="compact" class="text-body-2">
-                            <thead>
-                                <tr>
-                                    <th>{{ tt('Date') }}</th>
-                                    <th>{{ tt('Description') }}</th>
-                                    <th>{{ tt('Counterparty') }}</th>
-                                    <th>{{ tt('Bank') }}</th>
-                                    <th class="text-end">{{ tt('Amount') }}</th>
-                                    <th class="text-end">{{ tt('Actions') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="tx in transactions" :key="tx.sessionId + '-' + getBankTransactionId(tx)">
-                                    <td>{{ tx.date || tt('No date') }}</td>
-                                    <td>{{ tx.description || '–' }}</td>
-                                    <td>{{ tx.counterpartyName || '–' }}</td>
-                                    <td>{{ tx.aspspName }}</td>
-                                    <td class="text-end" :class="tx.creditDebit === 'CRDT' ? 'text-success' : 'text-error'">
-                                        {{ tx.amount }} {{ tx.currency }}
-                                    </td>
-                                    <td class="text-end">
-                                        <v-btn
-                                            size="small"
-                                            variant="text"
-                                            color="primary"
-                                            :loading="categorisingId === tx.sessionId + '-' + getBankTransactionId(tx)"
-                                            :disabled="dismissingId !== null"
-                                            @click="openCategoriseDialog(tx)"
-                                        >
-                                            {{ tt('Categorise') }}
-                                        </v-btn>
-                                        <v-btn
-                                            size="small"
-                                            variant="text"
-                                            color="error"
-                                            :loading="dismissingId === tx.sessionId + '-' + getBankTransactionId(tx)"
-                                            :disabled="categorisingId !== null"
-                                            @click="dismiss(tx)"
-                                        >
-                                            {{ tt('Dismiss') }}
-                                        </v-btn>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </v-table>
-                    </template>
-                </v-card-text>
-            </v-card>
-        </v-col>
-    </v-row>
+    <main-page-layout no-navbar>
+        <template #content>
+            <v-row>
+                <v-col cols="12">
+                    <v-card :title="tt('New transactions')">
+                        <v-card-text>
+                            <span class="text-body-1">{{ tt('Incoming bank transactions from the last 48 hours. Categorise to add to your ledger, or dismiss to ignore.') }}</span>
+                        </v-card-text>
+                        <v-card-text>
+                            <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
+                            <template v-else-if="transactions.length === 0">
+                                <p class="text-body-2 text-medium-emphasis">{{ tt('No new transactions in the last 48 hours.') }}</p>
+                            </template>
+                            <template v-else>
+                                <v-table density="compact" class="text-body-2">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ tt('Date') }}</th>
+                                            <th>{{ tt('Description') }}</th>
+                                            <th>{{ tt('Counterparty') }}</th>
+                                            <th>{{ tt('Bank') }}</th>
+                                            <th class="text-end">{{ tt('Amount') }}</th>
+                                            <th class="text-end">{{ tt('Actions') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="tx in transactions" :key="tx.sessionId + '-' + getBankTransactionId(tx)">
+                                            <td>{{ tx.date || tt('No date') }}</td>
+                                            <td>{{ tx.description || '–' }}</td>
+                                            <td>{{ tx.counterpartyName || '–' }}</td>
+                                            <td>{{ tx.aspspName }}</td>
+                                            <td class="text-end" :class="tx.creditDebit === 'CRDT' ? 'text-success' : 'text-error'">
+                                                {{ tx.amount }} {{ tx.currency }}
+                                            </td>
+                                            <td class="text-end">
+                                                <v-btn
+                                                    size="small"
+                                                    variant="text"
+                                                    color="primary"
+                                                    :loading="categorisingId === tx.sessionId + '-' + getBankTransactionId(tx)"
+                                                    :disabled="dismissingId !== null"
+                                                    @click="openCategoriseDialog(tx)"
+                                                >
+                                                    {{ tt('Categorise') }}
+                                                </v-btn>
+                                                <v-btn
+                                                    size="small"
+                                                    variant="text"
+                                                    color="error"
+                                                    :loading="dismissingId === tx.sessionId + '-' + getBankTransactionId(tx)"
+                                                    :disabled="categorisingId !== null"
+                                                    @click="dismiss(tx)"
+                                                >
+                                                    {{ tt('Dismiss') }}
+                                                </v-btn>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </v-table>
+                            </template>
+                        </v-card-text>
+                    </v-card>
+                </v-col>
+            </v-row>
+        </template>
+    </main-page-layout>
 
     <v-dialog v-model="categoriseDialog" persistent max-width="500">
         <v-card>

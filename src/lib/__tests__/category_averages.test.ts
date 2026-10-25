@@ -26,7 +26,7 @@ function month(yearMonth: number, items: [string, number][]): TransactionStatist
         items: items.map(([categoryId, amount]) => ({
             categoryId,
             accountId: 'a1',
-            amount
+            amount: String(amount)
         }))
     };
 }
