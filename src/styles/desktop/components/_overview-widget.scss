@@ -426,6 +426,12 @@
         gap: 10px;
     }
 
+    .period-income-expense-widget__expense-split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
     .overview-widget__caption {
         font-size: 0.75rem;
         line-height: 18px;

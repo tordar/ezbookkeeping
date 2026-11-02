@@ -149,6 +149,9 @@ export const useOverviewStore = defineStore('overview', () => {
     });
 
     const transactionOverviewData = ref<TransactionAmountsResponse>({});
+    // the same amounts without the home page category filter, only loaded while that filter is set, so period
+    // widgets can show total expenses next to the filtered (variable) ones
+    const transactionOverviewWithoutCategoryFilterData = ref<TransactionAmountsResponse>({});
     const transactionOverviewStateInvalid = ref<boolean>(true);
     const transactionUnreconciledCounts = ref<TransactionUnreconciledCountItem[]>([]);
     const transactionUnreconciledCountsStateInvalid = ref<boolean>(true);
@@ -166,9 +169,10 @@ export const useOverviewStore = defineStore('overview', () => {
     const transactionDailyAmountsData = ref<TransactionDailyAmountsResponseItem[]>([]);
     const transactionDailyAmountsStateInvalid = ref<boolean>(true);
 
-    const transactionOverview = computed<TransactionOverviewData>(() => {
-        const overviewData = transactionOverviewData.value;
+    const transactionOverview = computed<TransactionOverviewData>(() => buildTransactionOverview(transactionOverviewData.value));
+    const transactionOverviewWithoutCategoryFilter = computed<TransactionOverviewData>(() => buildTransactionOverview(transactionOverviewWithoutCategoryFilterData.value));
 
+    function buildTransactionOverview(overviewData: TransactionAmountsResponse): TransactionOverviewData {
         if (!overviewData || !overviewData.thisMonth) {
             return {
                 thisMonth: {
@@ -231,7 +235,7 @@ export const useOverviewStore = defineStore('overview', () => {
         });
 
         return finalOverviewData;
-    });
+    }
 
     function getTransactionDateRange(): TransactionDataRange {
         const dateRange: TransactionDataRange = {
@@ -315,6 +319,7 @@ export const useOverviewStore = defineStore('overview', () => {
         updateTransactionDateRange();
         transactionOverviewOptions.value.loadedMonths = 1;
         transactionOverviewData.value = {};
+        transactionOverviewWithoutCategoryFilterData.value = {};
         transactionOverviewStateInvalid.value = true;
         transactionUnreconciledCounts.value = [];
         transactionUnreconciledCountsStateInvalid.value = true;
@@ -373,8 +378,12 @@ export const useOverviewStore = defineStore('overview', () => {
         const tagFilter: string = settingsStore.appSettings.overviewTransactionTagFilterInHomePage;
 
         return new Promise((resolve, reject) => {
-            services.getTransactionAmounts(requestParams, excludeAccountIds, excludeCategoryIds, tagFilter).then(response => {
+            Promise.all([
+                services.getTransactionAmounts(requestParams, excludeAccountIds, excludeCategoryIds, tagFilter),
+                excludeCategoryIds.length ? services.getTransactionAmounts(requestParams, excludeAccountIds, [], tagFilter) : null
+            ]).then(([response, responseWithoutCategoryFilter]) => {
                 const data = response.data;
+                const resultWithoutCategoryFilter: TransactionAmountsResponse = responseWithoutCategoryFilter?.data?.result ?? {};
 
                 if (!data || !data.success || !data.result) {
                     reject({ message: 'Unable to retrieve transaction overview' });
@@ -385,12 +394,13 @@ export const useOverviewStore = defineStore('overview', () => {
                     transactionOverviewStateInvalid.value = false;
                 }
 
-                if (force && data.result && isEquals(transactionOverviewData.value, data.result)) {
+                if (force && data.result && isEquals(transactionOverviewData.value, data.result) && isEquals(transactionOverviewWithoutCategoryFilterData.value, resultWithoutCategoryFilter)) {
                     reject({ message: 'Data is up to date', isUpToDate: true });
                     return;
                 }
 
                 transactionOverviewData.value = data.result;
+                transactionOverviewWithoutCategoryFilterData.value = resultWithoutCategoryFilter;
                 transactionOverviewOptions.value.loadedMonths = requestedMonths;
 
                 resolve(data.result);
@@ -903,6 +913,7 @@ export const useOverviewStore = defineStore('overview', () => {
         transactionDailyAmountsData,
         // computed states,
         transactionOverview,
+        transactionOverviewWithoutCategoryFilter,
         // functions
         updateTransactionOverviewInvalidState,
         resetTransactionOverview,

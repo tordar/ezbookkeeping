@@ -20,11 +20,22 @@
                     <div class="overview-widget__stat">
                         <span class="overview-widget__caption"><span class="overview-widget__dot bg-income"></span>{{ tt('Income') }}</span>
                         <div class="overview-widget__amount text-headline-small text-truncate"
-                             :class="{ 'text-income': !!currentDisplayIncomeAmount, 'text-medium-emphasis': !currentDisplayIncomeAmount }"
-                             v-if="!loading || currentDisplayIncomeAmount">{{ currentDisplayIncomeAmount || tt('No data') }}</div>
+                             :class="{ 'text-income': !!displayIncomeAmount, 'text-medium-emphasis': !displayIncomeAmount }"
+                             v-if="!loading || displayIncomeAmount">{{ displayIncomeAmount || tt('No data') }}</div>
                         <v-skeleton-loader class="skeleton-no-margin my-2" type="text" width="120px" :loading="true" v-else></v-skeleton-loader>
                     </div>
-                    <div class="overview-widget__stat">
+                    <div class="period-income-expense-widget__expense-split" v-if="showVariableExpense">
+                        <div class="overview-widget__stat">
+                            <span class="overview-widget__caption"><span class="overview-widget__dot bg-expense"></span>{{ tt('Total expense') }}</span>
+                            <div class="overview-widget__amount text-headline-small text-truncate text-expense">{{ currentDisplayUnfilteredExpenseAmount }}</div>
+                        </div>
+                        <div class="overview-widget__stat">
+                            <span class="overview-widget__caption"><span class="overview-widget__dot bg-expense"></span>{{ tt('Variable expense') }}</span>
+                            <div class="overview-widget__amount text-headline-small text-truncate"
+                                 :class="{ 'text-expense': !!currentDisplayExpenseAmount, 'text-medium-emphasis': !currentDisplayExpenseAmount }">{{ currentDisplayExpenseAmount || tt('No data') }}</div>
+                        </div>
+                    </div>
+                    <div class="overview-widget__stat" v-else>
                         <span class="overview-widget__caption"><span class="overview-widget__dot bg-expense"></span>{{ tt('Expense') }}</span>
                         <div class="overview-widget__amount text-headline-small text-truncate"
                              :class="{ 'text-expense': !!currentDisplayExpenseAmount, 'text-medium-emphasis': !currentDisplayExpenseAmount }"
@@ -89,8 +100,16 @@ const {
     currentDisplayDateTime,
     currentDisplayIncomeAmount,
     currentDisplayExpenseAmount,
+    currentDisplayUnfilteredIncomeAmount,
+    currentDisplayUnfilteredExpenseAmount,
     currentDetailsUrl
 } = usePeriodStatisticsWidgetBase(props);
+
+// for this month and this year with the home page category filter set, income and total expense count every
+// category and the filtered expense amount is shown next to the total as variable expense
+const showVariableExpense = computed<boolean>(() => !!currentDisplayUnfilteredExpenseAmount.value
+    && (props.dateType === DateRange.ThisMonth.type || props.dateType === DateRange.ThisYear.type));
+const displayIncomeAmount = computed<string>(() => showVariableExpense.value ? currentDisplayUnfilteredIncomeAmount.value : currentDisplayIncomeAmount.value);
 
 const allSupportedPeriodIcons: Record<number, string> = {
     [DateRange.Today.type]: mdiCalendarTodayOutline,

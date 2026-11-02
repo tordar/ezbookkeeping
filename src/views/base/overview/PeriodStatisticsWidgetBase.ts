@@ -75,6 +75,7 @@ export function usePeriodStatisticsWidgetBase(props: CommonPeriodStatisticsWidge
     });
 
     const currentOverviewItem = computed<TransactionOverviewDataItem | undefined>(() => getOverviewItem(props.dateType));
+    const currentOverviewItemWithoutCategoryFilter = computed<TransactionOverviewDataItem | undefined>(() => getOverviewItem(props.dateType, overviewStore.transactionOverviewWithoutCategoryFilter));
     const currentPeriodTitle = computed<string>(() => tt(isInteger(props.dateType) ? (DateRange.valueOf(props.dateType)?.name ?? 'Unknown') : 'Unknown'));
     const currentDisplayDateTime = computed<string>(() => getDisplayDateTime(props.dateType));
 
@@ -84,6 +85,9 @@ export function usePeriodStatisticsWidgetBase(props: CommonPeriodStatisticsWidge
 
     const currentDisplayIncomeAmount = computed<string>(() => currentOverviewItem.value?.valid ? getDisplayIncomeAmount(currentOverviewItem.value) : '');
     const currentDisplayExpenseAmount = computed<string>(() => currentOverviewItem.value?.valid ? getDisplayExpenseAmount(currentOverviewItem.value) : '');
+    // only set while the home page category filter is active: income and expenses with every category counted
+    const currentDisplayUnfilteredIncomeAmount = computed<string>(() => currentOverviewItemWithoutCategoryFilter.value?.valid ? getDisplayIncomeAmount(currentOverviewItemWithoutCategoryFilter.value) : '');
+    const currentDisplayUnfilteredExpenseAmount = computed<string>(() => currentOverviewItemWithoutCategoryFilter.value?.valid ? getDisplayExpenseAmount(currentOverviewItemWithoutCategoryFilter.value) : '');
     const currentDisplayNetIncomeAmount = computed<string>(() => {
         if (!currentOverviewItem.value?.valid) {
             return '';
@@ -119,15 +123,15 @@ export function usePeriodStatisticsWidgetBase(props: CommonPeriodStatisticsWidge
         return `/transaction/list?${overviewStore.getTransactionListPageParams({ dateType: props.dateType })}`
     });
 
-    function getOverviewItem(dateType: number | undefined): TransactionOverviewDataItem | undefined {
+    function getOverviewItem(dateType: number | undefined, overview: TransactionOverviewData = transactionOverview.value): TransactionOverviewDataItem | undefined {
         if (dateType === DateRange.Today.type) {
-            return transactionOverview.value.today;
+            return overview.today;
         } else if (dateType === DateRange.ThisWeek.type) {
-            return transactionOverview.value.thisWeek;
+            return overview.thisWeek;
         } else if (dateType === DateRange.ThisMonth.type) {
-            return transactionOverview.value.thisMonth;
+            return overview.thisMonth;
         } else if (dateType === DateRange.ThisYear.type) {
-            return transactionOverview.value.thisYear;
+            return overview.thisYear;
         } else {
             return undefined;
         }
@@ -177,6 +181,8 @@ export function usePeriodStatisticsWidgetBase(props: CommonPeriodStatisticsWidge
         currentNetIncomeAmount,
         currentDisplayIncomeAmount,
         currentDisplayExpenseAmount,
+        currentDisplayUnfilteredIncomeAmount,
+        currentDisplayUnfilteredExpenseAmount,
         currentDisplayNetIncomeAmount,
         currentDisplaySavingsRate,
         currentDetailsUrl,
