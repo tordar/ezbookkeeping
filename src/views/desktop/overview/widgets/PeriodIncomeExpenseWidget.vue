@@ -15,7 +15,7 @@
             </overview-widget-header>
         </template>
         <v-card-text class="overview-widget__body period-income-expense-widget__body d-flex flex-column">
-            <div class="period-income-expense-widget__content">
+            <div class="period-income-expense-widget__content" :class="{ 'period-income-expense-widget__content--split': showVariableExpense }">
                 <div class="period-income-expense-widget__metrics">
                     <div class="overview-widget__stat">
                         <span class="overview-widget__caption"><span class="overview-widget__dot bg-income"></span>{{ tt('Income') }}</span>

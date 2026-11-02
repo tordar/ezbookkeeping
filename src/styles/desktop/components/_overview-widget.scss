@@ -483,6 +483,15 @@
         display: block;
         justify-self: end;
     }
+
+    // the side-by-side total and variable expense need the illustration's column
+    .period-income-expense-widget__body .period-income-expense-widget__content--split {
+        grid-template-columns: minmax(0, 1fr);
+
+        .period-income-expense-widget__illustration {
+            display: none;
+        }
+    }
 }
 
 .savings-rate-widget {
