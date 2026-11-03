@@ -712,7 +712,7 @@ func (a *TransactionsApi) TransactionStatisticsTrendsHandler(c *core.WebContext)
 	}
 
 	uid := c.GetCurrentUid()
-	allMonthlyTotalAmounts, err := a.transactions.GetAccountsAndCategoriesMonthlyInflowAndOutflow(c, uid, startYear, startMonth, endYear, endMonth, statisticTrendsReq.PeriodStartDay, statisticTrendsReq.MaxDaysIntoPeriod, tagFilters, noTags, statisticTrendsReq.Keyword, statisticTrendsReq.MatchMode, clientTimezone, statisticTrendsReq.UseTransactionTimezone)
+	allMonthlyTotalAmounts, err := a.transactions.GetAccountsAndCategoriesMonthlyInflowAndOutflow(c, uid, startYear, startMonth, endYear, endMonth, statisticTrendsReq.PeriodStartDay, statisticTrendsReq.MaxDaysIntoPeriod, statisticTrendsReq.GroupByDayIntoPeriod, tagFilters, noTags, statisticTrendsReq.Keyword, statisticTrendsReq.MatchMode, clientTimezone, statisticTrendsReq.UseTransactionTimezone)
 
 	if err != nil {
 		log.Errorf(c, "[transactions.TransactionStatisticsTrendsHandler] failed to get accounts and categories total income and expense for user \"uid:%d\", because %s", uid, err.Error())
@@ -731,9 +731,10 @@ func (a *TransactionsApi) TransactionStatisticsTrendsHandler(c *core.WebContext)
 		for i := 0; i < len(monthlyTotalAmounts); i++ {
 			totalAmountItem := monthlyTotalAmounts[i]
 			monthlyStatisticResp.Items[i] = &models.TransactionStatisticResponseItem{
-				CategoryId:  totalAmountItem.CategoryId,
-				AccountId:   totalAmountItem.AccountId,
-				TotalAmount: totalAmountItem.Amount.String(),
+				CategoryId:    totalAmountItem.CategoryId,
+				AccountId:     totalAmountItem.AccountId,
+				DayIntoPeriod: totalAmountItem.DayIntoPeriod,
+				TotalAmount:   totalAmountItem.Amount.String(),
 			}
 
 			if totalAmountItem.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT || totalAmountItem.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {

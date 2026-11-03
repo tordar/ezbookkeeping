@@ -79,6 +79,8 @@
                                          v-else-if="widget.type === OverviewWidgetType.TransactionCalendarHeatmap" />
 
     <category-averages-widget :loading="loading" :title="widgetTitle"
+                              :display-mode="widget.settings['displayMode'] as string"
+                              :chart-category-ids="widget.settings['chartCategoryIds'] as string[]"
                               v-else-if="widget.type === OverviewWidgetType.CategoryAverages" />
 </template>
 

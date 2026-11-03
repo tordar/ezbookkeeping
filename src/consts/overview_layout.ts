@@ -662,9 +662,35 @@ export const DESKTOP_OVERVIEW_WIDGET_DEFINITIONS: PartialRecord<OverviewWidgetTy
         type: OverviewWidgetType.CategoryAverages,
         name: 'Category Averages',
         supportsSettings: [
-            WIDGET_TITLE_SETTING
+            WIDGET_TITLE_SETTING,
+            {
+                settingType: 'customSelect',
+                settingName: 'displayMode',
+                displayName: 'Display Mode',
+                selectValues: [
+                    {
+                        name: 'Table',
+                        value: 'table'
+                    },
+                    {
+                        name: 'Line Chart',
+                        value: 'lineChart'
+                    }
+                ]
+            },
+            {
+                settingType: 'categorySelect',
+                settingName: 'chartCategoryIds',
+                displayName: 'Category',
+                condition: (settings?: Record<string, OverviewWidgetSettingValue>) => {
+                    return settings?.['displayMode'] === 'lineChart';
+                }
+            }
         ],
-        defaultSettings: {},
+        defaultSettings: {
+            displayMode: 'table',
+            chartCategoryIds: []
+        },
         defaultWidth: 6,
         defaultHeight: 6,
         minWidth: 4,

@@ -303,3 +303,116 @@ function sumOf(rows: CategoryAveragesRow[], field: keyof CategoryAveragesTotal):
 
     return total;
 }
+
+// getPeriodLength returns how many days the period starting in the given month runs for. A period
+// starting on the 25th of August ends on the 24th of September, so it is as long as August itself.
+export function getPeriodLength(startYear: number, startMonth: number): number {
+    return daysInMonth(startYear, startMonth);
+}
+
+export interface CategoryAveragesDailyOptions {
+    // per category totals for every day of the baseline periods and the current period
+    readonly dailyTrends: TransactionStatisticTrendsResponseItem[];
+    readonly baselineYearMonths: number[];
+    readonly currentYearMonth: number;
+    readonly periodLength: number;
+    readonly daysElapsed: number;
+    readonly resolveCategory: (categoryId: string) => CategoryAveragesCategoryInfo | undefined;
+    readonly resolveAmount: (amount: number, accountId: string) => number | null;
+    readonly isExcludedCategory: (categoryId: string) => boolean;
+}
+
+export interface CategoryAveragesDailySeries {
+    readonly categoryId: string;
+    readonly name: string;
+    readonly color: ColorValue;
+    // cumulative spending this period, one value per day that has passed
+    readonly spentSoFar: number[];
+    // cumulative spending usually reached by each day of the period, one value per day of the
+    // period. The last day takes everything a baseline period held, so it matches the monthly
+    // average even when a baseline period was longer than the current one.
+    readonly average: number[];
+}
+
+// buildCategoryAveragesDaily turns per day statistics trends into cumulative lines per primary
+// category, the same figures the table shows but traced out over the days of the period. Amounts
+// from filtered out categories are left out, just as they are left out of the totals.
+export function buildCategoryAveragesDaily(options: CategoryAveragesDailyOptions): CategoryAveragesDailySeries[] {
+    const { dailyTrends, baselineYearMonths, currentYearMonth, periodLength, daysElapsed, resolveCategory, resolveAmount, isExcludedCategory } = options;
+
+    const baselineMonthCount = baselineYearMonths.length;
+    const baselineYearMonthSet = new Set<number>(baselineYearMonths);
+    const dailyAmounts: Record<string, { category: CategoryAveragesCategoryInfo, current: number[], baseline: number[] }> = {};
+
+    for (const monthlyTrend of dailyTrends) {
+        const yearMonth = monthlyTrend.year * 100 + monthlyTrend.month;
+        const isBaseline = baselineYearMonthSet.has(yearMonth) && baselineMonthCount > 0;
+        const isCurrentMonth = yearMonth === currentYearMonth;
+
+        if (!isBaseline && !isCurrentMonth) {
+            continue;
+        }
+
+        for (const item of monthlyTrend.items) {
+            const day = item.dayIntoPeriod ?? 0;
+            const category = resolveCategory(item.categoryId);
+
+            if (day < 1 || !category || category.type !== CategoryType.Expense || isExcludedCategory(category.id)) {
+                continue;
+            }
+
+            const primaryCategory = category.parentId && category.parentId !== '0' ? resolveCategory(category.parentId) : category;
+
+            if (!primaryCategory) {
+                continue;
+            }
+
+            const convertedAmount = resolveAmount(Number(item.amount), item.accountId);
+
+            if (convertedAmount === null) {
+                continue;
+            }
+
+            let amounts = dailyAmounts[primaryCategory.id];
+
+            if (!amounts) {
+                amounts = {
+                    category: primaryCategory,
+                    current: new Array<number>(daysElapsed).fill(0),
+                    baseline: new Array<number>(periodLength).fill(0)
+                };
+                dailyAmounts[primaryCategory.id] = amounts;
+            }
+
+            if (isBaseline) {
+                amounts.baseline[Math.min(day, periodLength) - 1]! += convertedAmount / baselineMonthCount;
+            }
+
+            if (isCurrentMonth && day <= daysElapsed) {
+                amounts.current[day - 1]! += convertedAmount;
+            }
+        }
+    }
+
+    return Object.values(dailyAmounts)
+        .map(amounts => ({
+            categoryId: amounts.category.id,
+            name: amounts.category.name,
+            color: amounts.category.color,
+            spentSoFar: cumulativeOf(amounts.current),
+            average: cumulativeOf(amounts.baseline)
+        }))
+        .sort((seriesA, seriesB) => (seriesB.average[seriesB.average.length - 1] ?? 0) - (seriesA.average[seriesA.average.length - 1] ?? 0));
+}
+
+function cumulativeOf(amounts: number[]): number[] {
+    const cumulative: number[] = [];
+    let total = 0;
+
+    for (const amount of amounts) {
+        total += amount;
+        cumulative.push(total);
+    }
+
+    return cumulative;
+}

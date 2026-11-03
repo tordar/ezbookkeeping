@@ -7,6 +7,8 @@ import {
     getBaselineYearMonths,
     getCurrentPeriod,
     buildCategoryAverages,
+    buildCategoryAveragesDaily,
+    getPeriodLength,
     type CategoryAveragesCategoryInfo
 } from '@/lib/category_averages.ts';
 
@@ -336,5 +338,83 @@ describe('getCurrentPeriod', () => {
         expect(baseline).toHaveLength(12);
         expect(baseline).not.toContain(202608);
         expect(baseline[baseline.length - 1]).toBe(202607);
+    });
+});
+
+function dailyMonth(yearMonth: number, items: [string, number, number][]): TransactionStatisticTrendsResponseItem {
+    return {
+        year: Math.trunc(yearMonth / 100),
+        month: yearMonth % 100,
+        items: items.map(([categoryId, day, amount]) => ({
+            categoryId,
+            accountId: 'a1',
+            dayIntoPeriod: day,
+            amount: String(amount)
+        }))
+    };
+}
+
+describe('getPeriodLength', () => {
+    test('a period is as long as the month it starts in', () => {
+        expect(getPeriodLength(2026, 8)).toBe(31);
+        expect(getPeriodLength(2026, 2)).toBe(28);
+        expect(getPeriodLength(2028, 2)).toBe(29);
+    });
+});
+
+describe('buildCategoryAveragesDaily', () => {
+    test('traces cumulative spending this period against the usual by each day', () => {
+        const series = buildCategoryAveragesDaily({
+            dailyTrends: [
+                dailyMonth(202608, [['11', 1, 100], ['12', 3, 300]]),
+                dailyMonth(202609, [['11', 2, 200], ['21', 1, 5000]]),
+                dailyMonth(202610, [['11', 1, 50], ['12', 2, 70], ['11', 4, 999]])
+            ],
+            baselineYearMonths: [202608, 202609],
+            currentYearMonth: 202610,
+            periodLength: 4,
+            daysElapsed: 3,
+            resolveCategory,
+            resolveAmount,
+            isExcludedCategory: excludeNothing
+        });
+
+        expect(series.map(item => item.categoryId)).toEqual(['2', '1']);
+
+        const food = series[1]!;
+        expect(food.spentSoFar).toEqual([50, 120, 120]);
+        expect(food.average).toEqual([50, 150, 300, 300]);
+    });
+
+    test('days beyond the current period land on its last day so the line ends at the monthly average', () => {
+        const series = buildCategoryAveragesDaily({
+            dailyTrends: [dailyMonth(202608, [['1', 31, 310]])],
+            baselineYearMonths: [202608],
+            currentYearMonth: 202609,
+            periodLength: 30,
+            daysElapsed: 1,
+            resolveCategory,
+            resolveAmount,
+            isExcludedCategory: excludeNothing
+        });
+
+        expect(series[0]!.average[29]).toBe(310);
+        expect(series[0]!.average[28]).toBe(0);
+    });
+
+    test('leaves out income, filtered out categories and unconvertible amounts', () => {
+        const series = buildCategoryAveragesDaily({
+            dailyTrends: [dailyMonth(202610, [['9', 1, 1000], ['21', 1, 5000], ['11', 1, 10], ['12', 1, 20]])],
+            baselineYearMonths: [202609],
+            currentYearMonth: 202610,
+            periodLength: 31,
+            daysElapsed: 1,
+            resolveCategory,
+            resolveAmount: (amount: number) => amount === 20 ? null : amount,
+            isExcludedCategory: (categoryId: string) => categoryId === '21'
+        });
+
+        expect(series.map(item => item.categoryId)).toEqual(['1']);
+        expect(series[0]!.spentSoFar).toEqual([10]);
     });
 });

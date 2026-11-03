@@ -16,8 +16,11 @@ import { getCurrentDateTime, getYearMonthDayDateTime } from '@/lib/datetime.ts';
 import {
     getBaselineYearMonths,
     getCurrentPeriod,
+    getPeriodLength,
     buildCategoryAverages,
+    buildCategoryAveragesDaily,
     type CategoryAveragesCategoryInfo,
+    type CategoryAveragesDailySeries,
     type CategoryAveragesResult
 } from '@/lib/category_averages.ts';
 
@@ -49,6 +52,9 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
     const exchangeRatesStore = useExchangeRatesStore();
 
     const categoryAveragesData = ref<CategoryAveragesResult>(EMPTY_RESULT);
+    const categoryAveragesDailyData = ref<CategoryAveragesDailySeries[]>([]);
+    // how many days the current period runs for, for the chart's day axis
+    const currentPeriodLength = ref<number>(0);
     const categoryAveragesStateInvalid = ref<boolean>(true);
     const currentDayOfMonth = ref<number>(0);
     // the first day of the period the card is reporting on, for the heading
@@ -60,6 +66,8 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
 
     function resetCategoryAverages(): void {
         categoryAveragesData.value = EMPTY_RESULT;
+        categoryAveragesDailyData.value = [];
+        currentPeriodLength.value = 0;
         categoryAveragesStateInvalid.value = true;
         currentDayOfMonth.value = 0;
         currentPeriodStartUnixTime.value = 0;
@@ -127,13 +135,16 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
             transactionCategoriesStore.loadAllCategories({ force: false })
         ]).then(() => Promise.all([
             services.getTransactionStatisticsTrends(baseRequest),
-            services.getTransactionStatisticsTrends({ ...baseRequest, maxDaysIntoPeriod: period.daysElapsed })
-        ])).then(([fullMonthResponse, toDateResponse]) => {
+            services.getTransactionStatisticsTrends({ ...baseRequest, maxDaysIntoPeriod: period.daysElapsed }),
+            services.getTransactionStatisticsTrends({ ...baseRequest, groupByDayIntoPeriod: true })
+        ])).then(([fullMonthResponse, toDateResponse, dailyResponse]) => {
             const fullMonthTrends = fullMonthResponse.data?.result as TransactionStatisticTrendsResponseItem[] | undefined;
             const toDateTrends = toDateResponse.data?.result as TransactionStatisticTrendsResponseItem[] | undefined;
+            const dailyTrends = dailyResponse.data?.result as TransactionStatisticTrendsResponseItem[] | undefined;
 
             if (!fullMonthResponse.data || !fullMonthResponse.data.success || !fullMonthTrends
-                || !toDateResponse.data || !toDateResponse.data.success || !toDateTrends) {
+                || !toDateResponse.data || !toDateResponse.data.success || !toDateTrends
+                || !dailyResponse.data || !dailyResponse.data.success || !dailyTrends) {
                 logger.error('[categoryAverages.loadCategoryAverages] cannot load category averages, because response is not success');
                 return Promise.reject({ message: 'Unable to retrieve category averages' });
             }
@@ -148,7 +159,20 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
                 isExcludedCategory: isExcludedCategory
             });
 
+            const periodLength = getPeriodLength(period.startYear, period.startMonth);
+
             categoryAveragesData.value = result;
+            categoryAveragesDailyData.value = buildCategoryAveragesDaily({
+                dailyTrends: dailyTrends,
+                baselineYearMonths: baselineYearMonths,
+                currentYearMonth: currentYearMonth,
+                periodLength: periodLength,
+                daysElapsed: period.daysElapsed,
+                resolveCategory: resolveCategory,
+                resolveAmount: resolveAmount,
+                isExcludedCategory: isExcludedCategory
+            });
+            currentPeriodLength.value = periodLength;
             categoryAveragesStateInvalid.value = false;
             currentDayOfMonth.value = currentDay;
             currentPeriodStartUnixTime.value = getYearMonthDayDateTime(period.startYear, period.startMonth, period.startDay).getUnixTime();
@@ -166,6 +190,8 @@ export const useCategoryAveragesStore = defineStore('categoryAverages', () => {
     return {
         // states
         categoryAveragesData,
+        categoryAveragesDailyData,
+        currentPeriodLength,
         categoryAveragesStateInvalid,
         currentDayOfMonth,
         currentPeriodStartUnixTime,

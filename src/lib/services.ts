@@ -599,6 +599,10 @@ export default {
             queryParams.push(`max_days_into_period=${req.maxDaysIntoPeriod}`);
         }
 
+        if (req.groupByDayIntoPeriod) {
+            queryParams.push('group_by_day_into_period=true');
+        }
+
         if (req.tagFilter) {
             queryParams.push(`tag_filter=${encodeURIComponent(req.tagFilter)}`);
         }

@@ -2534,8 +2534,9 @@ func (s *TransactionService) GetUnreconciledTransactionCounts(c core.Context, ui
 	return counts, err
 }
 
-// GetAccountsAndCategoriesMonthlyInflowAndOutflow returns the every accounts monthly inflows and outflows amount by specific date range
-func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, periodStartDay int32, maxDaysIntoPeriod int32, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.TransactionTotalAmount, error) {
+// GetAccountsAndCategoriesMonthlyInflowAndOutflow returns the every accounts monthly inflows and outflows amount by specific date range.
+// When groupByDayIntoPeriod is set, amounts are further split by the day of the period they fall on.
+func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c core.Context, uid int64, startYear int32, startMonth int32, endYear int32, endMonth int32, periodStartDay int32, maxDaysIntoPeriod int32, groupByDayIntoPeriod bool, tagFilters []*models.TransactionTagFilter, noTags bool, keyword string, matchMode core.MatchMode, clientTimezone *time.Location, useTransactionTimezone bool) (map[int32][]*models.TransactionTotalAmount, error) {
 	if uid <= 0 {
 		return nil, errs.ErrUserIdInvalid
 	}
@@ -2653,10 +2654,16 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 			continue
 		}
 
-		groupKey := fmt.Sprintf("%d_%d_%d", yearMonth, transaction.CategoryId, transaction.AccountId)
+		groupDay := int32(0)
+
+		if groupByDayIntoPeriod {
+			groupDay = daysIntoPeriod
+		}
+
+		groupKey := fmt.Sprintf("%d_%d_%d_%d", yearMonth, groupDay, transaction.CategoryId, transaction.AccountId)
 
 		if transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_OUT || transaction.Type == models.TRANSACTION_DB_TYPE_TRANSFER_IN {
-			groupKey = fmt.Sprintf("%d_%d_%d_%d_%d", yearMonth, transaction.CategoryId, transaction.AccountId, transaction.RelatedAccountId, transaction.Type)
+			groupKey = fmt.Sprintf("%d_%d_%d_%d_%d_%d", yearMonth, groupDay, transaction.CategoryId, transaction.AccountId, transaction.RelatedAccountId, transaction.Type)
 		}
 
 		transactionAmounts, exists := transactionsMonthlyAmountsMap[groupKey]
@@ -2667,6 +2674,7 @@ func (s *TransactionService) GetAccountsAndCategoriesMonthlyInflowAndOutflow(c c
 				CategoryId:       transaction.CategoryId,
 				AccountId:        transaction.AccountId,
 				RelatedAccountId: transaction.RelatedAccountId,
+				DayIntoPeriod:    groupDay,
 				Amount:           big.NewInt(0),
 			}
 

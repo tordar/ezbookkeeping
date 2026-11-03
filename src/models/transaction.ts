@@ -699,6 +699,7 @@ export interface YearMonthRangeRequest {
 export interface TransactionStatisticTrendsRequest extends YearMonthRangeRequest {
     readonly periodStartDay?: number;
     readonly maxDaysIntoPeriod?: number;
+    readonly groupByDayIntoPeriod?: boolean;
     readonly tagFilter: string;
     readonly keyword: string;
     readonly matchMode: number;
@@ -859,6 +860,8 @@ export interface TransactionStatisticResponseItem {
     readonly accountId: string;
     readonly relatedAccountId?: string;
     readonly relatedAccountType?: number;
+    // only set when the trends were requested grouped by day of the period, counting the first day as 1
+    readonly dayIntoPeriod?: number;
     readonly amount: string;
 }
 

@@ -365,6 +365,7 @@ type TransactionStatisticTrendsRequest struct {
 	YearMonthRangeRequest
 	PeriodStartDay         int32          `form:"period_start_day" binding:"min=0,max=28"`
 	MaxDaysIntoPeriod      int32          `form:"max_days_into_period" binding:"min=0,max=31"`
+	GroupByDayIntoPeriod   bool           `form:"group_by_day_into_period"`
 	TagFilter              string         `form:"tag_filter" binding:"validTagFilter"`
 	Keyword                string         `form:"keyword"`
 	MatchMode              core.MatchMode `form:"match_mode" binding:"min=0,max=1"`
@@ -558,6 +559,7 @@ type TransactionStatisticResponseItem struct {
 	AccountId          int64                         `json:"accountId,string"`
 	RelatedAccountId   int64                         `json:"relatedAccountId,string,omitempty"`
 	RelatedAccountType TransactionRelatedAccountType `json:"relatedAccountType,omitempty"`
+	DayIntoPeriod      int32                         `json:"dayIntoPeriod,omitempty"`
 	TotalAmount        string                        `json:"amount"`
 }
 
@@ -616,6 +618,7 @@ type TransactionTotalAmount struct {
 	CategoryId       int64
 	AccountId        int64
 	RelatedAccountId int64
+	DayIntoPeriod    int32
 	Amount           *big.Int
 }
 
