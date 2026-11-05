@@ -91,8 +91,6 @@ import { useI18n } from '@/locales/helpers.ts';
 
 import { useCategoryAveragesWidgetBase } from '@/views/base/overview/CategoryAveragesWidgetBase.ts';
 
-import { useSettingsStore } from '@/stores/setting.ts';
-
 import type { CategoryAveragesRow, CategoryAveragesTotal, CategoryAveragesResult } from '@/lib/category_averages.ts';
 
 import {
@@ -100,10 +98,6 @@ import {
     mdiChevronRight,
     mdiChevronDown
 } from '@mdi/js';
-
-// a category is only called over or under its usual pace once it is at least this far off, so that
-// rounding noise on small categories does not show up as a signal
-const PACE_THRESHOLD_PERCENT: number = 5;
 
 const props = defineProps<{
     loading: boolean;
@@ -113,52 +107,14 @@ const props = defineProps<{
     title?: string;
 }>();
 
-const { tt, formatNumberToLocalizedNumerals } = useI18n();
-const { displayAmount } = useCategoryAveragesWidgetBase();
-
-const settingsStore = useSettingsStore();
+const { tt } = useI18n();
+const { displayAmount, displayPace, paceClass } = useCategoryAveragesWidgetBase();
 
 const expandedCategoryIds = ref<Record<string, boolean>>({});
 
 const rows = computed<CategoryAveragesRow[]>(() => props.data?.rows ?? []);
 const total = computed<CategoryAveragesTotal>(() => props.data?.total ?? { spentSoFar: 0, averageToDate: 0, averageFullMonth: 0 });
 const hasUnconvertedAmounts = computed<boolean>(() => props.data?.hasUnconvertedAmounts ?? false);
-
-function getPacePercent(row: CategoryAveragesRow | CategoryAveragesTotal): number | null {
-    if ('excluded' in row && row.excluded) {
-        return null;
-    }
-
-    if (row.averageToDate <= 0) {
-        return null;
-    }
-
-    return (row.spentSoFar - row.averageToDate) * 100 / row.averageToDate;
-}
-
-function displayPace(row: CategoryAveragesRow | CategoryAveragesTotal): string {
-    if (!settingsStore.appSettings.showAmountInHomePage) {
-        return '';
-    }
-
-    const percent = getPacePercent(row);
-
-    if (percent === null || Math.abs(percent) < PACE_THRESHOLD_PERCENT) {
-        return '';
-    }
-
-    return (percent > 0 ? '+' : '') + formatNumberToLocalizedNumerals(Math.round(percent)) + '%';
-}
-
-function paceClass(row: CategoryAveragesRow | CategoryAveragesTotal): string {
-    const percent = getPacePercent(row);
-
-    if (percent === null || Math.abs(percent) < PACE_THRESHOLD_PERCENT) {
-        return '';
-    }
-
-    return percent > 0 ? 'text-expense' : 'text-income';
-}
 
 function toggleRow(row: CategoryAveragesRow): void {
     if (!row.subRows.length) {

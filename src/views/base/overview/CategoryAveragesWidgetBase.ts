@@ -12,8 +12,14 @@ import { AMOUNT_FACTOR, DISPLAY_HIDDEN_AMOUNT } from '@/consts/numeral.ts';
 import { parseBigDecimal } from '@/lib/numeral.ts';
 import { parseDateTimeFromUnixTime } from '@/lib/datetime.ts';
 
+import type { CategoryAveragesRow, CategoryAveragesTotal } from '@/lib/category_averages.ts';
+
+// a category is only called over or under its usual pace once it is at least this far off, so that
+// rounding noise on small categories does not show up as a signal
+const PACE_THRESHOLD_PERCENT: number = 5;
+
 export function useCategoryAveragesWidgetBase() {
-    const { formatAmountToLocalizedNumeralsWithCurrency, formatDateTimeToLongMonthDay } = useI18n();
+    const { formatAmountToLocalizedNumeralsWithCurrency, formatDateTimeToLongMonthDay, formatNumberToLocalizedNumerals } = useI18n();
 
     const settingsStore = useSettingsStore();
     const userStore = useUserStore();
@@ -52,8 +58,48 @@ export function useCategoryAveragesWidgetBase() {
         return formatted.replace(decimalSeparator.value + '00', '');
     }
 
+    function getPacePercent(row: CategoryAveragesRow | CategoryAveragesTotal): number | null {
+        if ('excluded' in row && row.excluded) {
+            return null;
+        }
+
+        if (row.averageToDate <= 0) {
+            return null;
+        }
+
+        const percent = (row.spentSoFar - row.averageToDate) * 100 / row.averageToDate;
+
+        return Math.abs(percent) < PACE_THRESHOLD_PERCENT ? null : percent;
+    }
+
+    function displayPace(row: CategoryAveragesRow | CategoryAveragesTotal): string {
+        if (!settingsStore.appSettings.showAmountInHomePage) {
+            return '';
+        }
+
+        const percent = getPacePercent(row);
+
+        if (percent === null) {
+            return '';
+        }
+
+        return (percent > 0 ? '+' : '') + formatNumberToLocalizedNumerals(Math.round(percent)) + '%';
+    }
+
+    function paceClass(row: CategoryAveragesRow | CategoryAveragesTotal): string {
+        const percent = getPacePercent(row);
+
+        if (percent === null) {
+            return '';
+        }
+
+        return percent > 0 ? 'text-expense' : 'text-income';
+    }
+
     return {
         periodTitle,
-        displayAmount
+        displayAmount,
+        displayPace,
+        paceClass
     };
 }

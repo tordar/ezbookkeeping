@@ -8,8 +8,9 @@
                 <small class="skeleton-text" v-if="loading && !periodTitle">Oct 25 - Oct 25</small>
                 <small v-else-if="periodTitle">{{ periodTitle }}</small>
                 <div class="overview-widget-primary-amount skeleton-text" v-if="loading && !rows.length">0 USD</div>
-                <div class="overview-widget-primary-amount" :class="{ 'text-expense': total.spentSoFar > 0 }" v-else>
-                    {{ displayAmount(total.spentSoFar) }}
+                <div class="overview-widget-primary-amount" v-else>
+                    <span :class="{ 'text-expense': total.spentSoFar > 0 }">{{ displayAmount(total.spentSoFar) }}</span>
+                    <span class="category-averages-pace category-averages-total-pace" :class="paceClass(total)" v-if="displayPace(total)">{{ displayPace(total) }}</span>
                 </div>
                 <div class="display-flex justify-content-space-between">
                     <small>{{ tt('Monthly Average') }}</small>
@@ -18,10 +19,15 @@
                 </div>
             </template>
         </f7-list-item>
-        <f7-list-item :key="row.categoryId" :title="row.name" :after="displayAmount(row.spentSoFar)"
-                      v-for="row in includedRows">
+        <f7-list-item :key="row.categoryId" :title="row.name" v-for="row in includedRows">
             <template #media>
                 <ItemIcon icon-type="category" :icon-id="row.icon" :color="row.color" />
+            </template>
+            <template #after>
+                <div class="category-averages-after">
+                    <span>{{ displayAmount(row.spentSoFar) }}</span>
+                    <small class="category-averages-pace" :class="paceClass(row)" v-if="displayPace(row)">{{ displayPace(row) }}</small>
+                </div>
             </template>
             <template #footer>
                 <div class="overview-transaction-footer">
@@ -58,7 +64,7 @@ defineProps<{
 }>();
 
 const { tt } = useI18n();
-const { periodTitle, displayAmount } = useCategoryAveragesWidgetBase();
+const { periodTitle, displayAmount, displayPace, paceClass } = useCategoryAveragesWidgetBase();
 
 const categoryAveragesStore = useCategoryAveragesStore();
 
@@ -68,3 +74,20 @@ const rows = computed<CategoryAveragesRow[]>(() => categoryAveragesStore.categor
 const includedRows = computed<CategoryAveragesRow[]>(() => rows.value.filter(row => !row.excluded));
 const total = computed<CategoryAveragesTotal>(() => categoryAveragesStore.categoryAveragesData.total);
 </script>
+
+<style>
+.category-averages-after {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.category-averages-pace {
+    font-size: var(--ebk-large-footer-font-size);
+    white-space: nowrap;
+}
+
+.category-averages-total-pace {
+    margin-inline-start: 8px;
+}
+</style>
